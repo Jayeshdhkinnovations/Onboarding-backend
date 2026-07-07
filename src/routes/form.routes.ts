@@ -4,6 +4,7 @@ import {
   getForm,
   listForms,
   updateForm,
+  patchForm,
   deleteForm,
   submitForm,
   getSubmissions,
@@ -14,9 +15,10 @@ const router = Router();
 
 router.post("/", protect as any, createForm);
 router.get("/", protect as any, listForms);
-router.get("/:id", protect as any, getForm);
-router.put("/:id", protect as any, updateForm);
-router.delete("/:id", protect as any, deleteForm);
+router.get("/:formId", protect as any, getForm);
+router.put("/:formId", protect as any, updateForm);
+router.patch("/:formId", protect as any, patchForm);
+router.delete("/:formId", protect as any, deleteForm);
 
 router.post("/:formId/submissions", submitForm);
 router.get("/:formId/submissions", protect as any, getSubmissions);

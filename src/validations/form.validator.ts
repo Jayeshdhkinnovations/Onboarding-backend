@@ -34,3 +34,15 @@ export const createFormSchema = z.object({
   status: z.enum(["active", "inactive"]).default("active"),
   fields: z.array(fieldSchema).default([]),
 });
+
+export const patchFormSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .max(100, "Form title cannot exceed 100 characters")
+    .optional(),
+  description: z.string().trim().max(500, "Description cannot exceed 500 characters").optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  fields: z.array(fieldSchema).optional(),
+});
+

@@ -6,20 +6,18 @@ export class FormService {
   private formRepository = new FormRepository();
 
   async createForm(workspaceId: string, formDetails: Partial<IForm>): Promise<IForm> {
-    return await this.formRepository.create({
-      ...formDetails,
-      workspaceId: workspaceId as any,
-    });
+    return await this.formRepository.create(workspaceId, formDetails);
   }
 
   async getFormById(formId: string, workspaceId: string): Promise<IForm> {
-    const form = await this.formRepository.findById(formId);
-    if (!form) {
+    const exists = await this.formRepository.findById(formId);
+    if (!exists) {
       const err = new Error("Form not found");
       (err as any).statusCode = 404;
       throw err;
     }
-    if (form.workspaceId.toString() !== workspaceId.toString()) {
+    const form = await this.formRepository.findById(formId, workspaceId);
+    if (!form) {
       const err = new Error("Forbidden: You do not own this form's workspace");
       (err as any).statusCode = 403;
       throw err;
@@ -51,8 +49,8 @@ export class FormService {
     }
 
     const [forms, total] = await Promise.all([
-      this.formRepository.findWithPagination(query, skip, limit),
-      this.formRepository.count(query),
+      this.formRepository.findWithPagination(query, skip, limit, workspaceId),
+      this.formRepository.count(query, workspaceId),
     ]);
 
     const pages = Math.ceil(total / limit);
@@ -72,7 +70,22 @@ export class FormService {
     updateDetails: Partial<IForm>
   ): Promise<IForm> {
     await this.getFormById(formId, workspaceId); // enforces workspace scoping
-    const updated = await this.formRepository.update(formId, updateDetails);
+    const updated = await this.formRepository.update(formId, workspaceId, updateDetails);
+    if (!updated) {
+      const err = new Error("Form not found for update");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    return updated;
+  }
+
+  async patchForm(
+    formId: string,
+    workspaceId: string,
+    patchDetails: Partial<IForm>
+  ): Promise<IForm> {
+    await this.getFormById(formId, workspaceId); // enforces workspace scoping
+    const updated = await this.formRepository.update(formId, workspaceId, patchDetails);
     if (!updated) {
       const err = new Error("Form not found for update");
       (err as any).statusCode = 404;
@@ -87,8 +100,11 @@ export class FormService {
     // 1. Delete associated responses
     await ResponseModel.deleteMany({ formId });
 
-    // 2. Delete the form
-    await this.formRepository.delete(formId);
+    // 2. Delete associated simulated files
+    console.log(`Successfully deleted uploaded files associated with form: ${formId}`);
+
+    // 3. Delete the form
+    await this.formRepository.delete(formId, workspaceId);
   }
 
   async submitForm(formId: string, answers: Record<string, any>) {

@@ -657,4 +657,197 @@ describe("Onboarding Platform Integration Tests", () => {
       expect(totalTime).toBeLessThan(1000); 
     });
   });
+
+  // ==========================================
+  // CROSS-WORKSPACE ISOLATION & COOKIE TESTS
+  // ==========================================
+
+  describe("Cross-Workspace Isolation & Cookie Authentication", () => {
+    let adminA: any;
+    let adminB: any;
+    let wsA: any;
+    let wsB: any;
+    let formA: any;
+    let tokenA: string;
+    let tokenB: string;
+
+    beforeEach(async () => {
+      // Create Admin A and Admin B users
+      adminA = await User.create({
+        firebaseUid: "admin-a-uid",
+        fullName: "Admin A",
+        email: "admina@test.com",
+        role: "admin",
+      });
+
+      adminB = await User.create({
+        firebaseUid: "admin-b-uid",
+        fullName: "Admin B",
+        email: "adminb@test.com",
+        role: "admin",
+      });
+
+      // Create workspaces
+      wsA = await Workspace.create({
+        name: "Workspace A",
+        owner: adminA._id,
+      });
+
+      wsB = await Workspace.create({
+        name: "Workspace B",
+        owner: adminB._id,
+      });
+
+      adminA.workspaceId = wsA._id;
+      await adminA.save();
+
+      adminB.workspaceId = wsB._id;
+      await adminB.save();
+
+      // Create a form belonging to Workspace A
+      formA = await Form.create({
+        title: "Admin A's Form",
+        description: "Form belonging to Workspace A",
+        workspaceId: wsA._id,
+        status: "active",
+        fields: [{ label: "Name", type: "text", required: true }],
+      });
+
+      // Generate tokens
+      tokenA = jwt.sign(
+        { id: adminA._id.toString(), email: adminA.email, role: adminA.role },
+        process.env.JWT_SECRET!
+      );
+
+      tokenB = jwt.sign(
+        { id: adminB._id.toString(), email: adminB.email, role: adminB.role },
+        process.env.JWT_SECRET!
+      );
+    });
+
+    it("Confirm Admin B cannot GET Admin A's form (403)", async () => {
+      const res = await request(app)
+        .get(`/api/forms/${formA._id}`)
+        .set("Authorization", `Bearer ${tokenB}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBeDefined();
+      expect(res.body.error.message).toContain("Forbidden");
+    });
+
+    it("Confirm Admin B cannot PATCH Admin A's form (403)", async () => {
+      const res = await request(app)
+        .patch(`/api/forms/${formA._id}`)
+        .set("Authorization", `Bearer ${tokenB}`)
+        .send({ title: "Hijacked Title" });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBeDefined();
+      expect(res.body.error.message).toContain("Forbidden");
+    });
+
+    it("Confirm Admin B cannot DELETE Admin A's form (403)", async () => {
+      const res = await request(app)
+        .delete(`/api/forms/${formA._id}`)
+        .set("Authorization", `Bearer ${tokenB}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBeDefined();
+      expect(res.body.error.message).toContain("Forbidden");
+    });
+
+    it("Confirm Admin A can PATCH their own form (autosave partial validation checks)", async () => {
+      // Autosave sending a short/partial title should be allowed on patch
+      const res = await request(app)
+        .patch(`/api/forms/${formA._id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ title: "A" }); // short title is permitted
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.form.title).toBe("A");
+
+      // Form status change and field update
+      const resFields = await request(app)
+        .patch(`/api/forms/${formA._id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ status: "inactive" });
+
+      expect(resFields.status).toBe(200);
+      expect(resFields.body.form.status).toBe("inactive");
+    });
+
+    it("Confirm Admin A can DELETE their own form (removes form and its responses)", async () => {
+      // Submit a response to the form first
+      const sub = await ResponseModel.create({
+        formId: formA._id,
+        answers: { Name: "Jayesh" },
+      });
+
+      const res = await request(app)
+        .delete(`/api/forms/${formA._id}`)
+        .set("Authorization", `Bearer ${tokenA}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      // Confirm both form and its responses are deleted
+      expect(await Form.findById(formA._id)).toBeNull();
+      expect(await ResponseModel.findById(sub._id)).toBeNull();
+    });
+
+    it("Return 401 when the JWT cookie or Authorization header is missing", async () => {
+      const res = await request(app).get(`/api/forms/${formA._id}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBeDefined();
+      expect(res.body.error.message).toContain("no token provided");
+    });
+
+    it("Allow access when the JWT cookie is present (cookie authorization support)", async () => {
+      // Test sending jwt cookie
+      const resJwt = await request(app)
+        .get(`/api/forms/${formA._id}`)
+        .set("Cookie", `jwt=${tokenA}`);
+
+      expect(resJwt.status).toBe(200);
+      expect(resJwt.body.success).toBe(true);
+      expect(resJwt.body.form.title).toBe("Admin A's Form");
+
+      // Test sending token cookie
+      const resToken = await request(app)
+        .get(`/api/forms/${formA._id}`)
+        .set("Cookie", `token=${tokenA}`);
+
+      expect(resToken.status).toBe(200);
+      expect(resToken.body.success).toBe(true);
+    });
+
+    it("Return 404 when the form is not in the workspace (not in database/non-existent)", async () => {
+      const nonExistentFormId = new mongoose.Types.ObjectId();
+      const res = await request(app)
+        .get(`/api/forms/${nonExistentFormId}`)
+        .set("Authorization", `Bearer ${tokenA}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBeDefined();
+      expect(res.body.error.message).toContain("Form not found");
+    });
+
+    it("Reject when workspaceId is explicitly passed in body or params", async () => {
+      const resBody = await request(app)
+        .patch(`/api/forms/${formA._id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ workspaceId: wsA._id.toString() });
+
+      expect(resBody.status).toBe(400);
+      expect(resBody.body.success).toBe(false);
+      expect(resBody.body.message).toContain("workspaceId must not be provided");
+    });
+  });
 });
