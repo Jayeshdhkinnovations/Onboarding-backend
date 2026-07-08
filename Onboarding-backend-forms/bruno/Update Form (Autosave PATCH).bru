@@ -1,0 +1,41 @@
+meta {
+  name: Update Form (Autosave PATCH)
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{base_url}}/api/forms/:formId
+  body: json
+  auth: inherit
+}
+
+params:path {
+  formId: {{formId}}
+}
+
+body:json {
+  {
+    "title": "Registration Form (Autosaved)",
+    "description": "Updated form description",
+    "fields": [
+      {
+        "fieldId": "{{fieldId}}",
+        "label": "Short Text Field Updated Label",
+        "type": "text",
+        "required": true,
+        "minLength": 3,
+        "maxLength": 60
+      },
+      {
+        "label": "New Auto-Generated Field",
+        "type": "email",
+        "required": false
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Get Form by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/forms/:formId
+  body: none
+  auth: inherit
+}
+
+params:path {
+  formId: {{formId}}
+}
+
+assert {
+  res.status: eq 200
+}

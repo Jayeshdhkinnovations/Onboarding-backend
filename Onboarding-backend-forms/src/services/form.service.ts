@@ -1,0 +1,452 @@
+import { FormRepository } from "../repositories/form.repository";
+import { IForm, IFormField } from "../models/Form";
+import ResponseModel from "../models/Response";
+import mongoose from "mongoose";
+
+export class FormService {
+  private formRepository = new FormRepository();
+
+  private processFieldsUpdate(existingFields: IFormField[], incomingFields: any[]): { fields: IFormField[], fieldsChanged: boolean } {
+    let fieldsChanged = false;
+    const existingMap = new Map<string, IFormField>();
+    for (const f of existingFields) {
+      if (f.fieldId) {
+        existingMap.set(f.fieldId, f);
+      }
+    }
+
+    const updatedFields: IFormField[] = [];
+    const incomingFieldIds = new Set<string>();
+
+    for (const incoming of incomingFields) {
+      let fieldId = incoming.fieldId;
+      if (!fieldId) {
+        fieldId = new mongoose.Types.ObjectId().toString();
+        incoming.fieldId = fieldId;
+        fieldsChanged = true;
+      }
+
+      incomingFieldIds.add(fieldId);
+
+      const existing = existingMap.get(fieldId);
+      if (existing) {
+        // Convert to plain object to clear Mongoose subdocument properties
+        const existingObj = JSON.parse(JSON.stringify(existing));
+        
+        // Remove internal fields for comparison
+        const { _id, deleted, ...cleanExisting } = existingObj as any;
+        const { _id: incomingId, deleted: incomingDeleted, ...cleanIncoming } = incoming;
+
+        const hasChanges = !deepEqual(cleanExisting, cleanIncoming) || existing.deleted !== (incoming.deleted ?? false);
+        if (hasChanges) {
+          fieldsChanged = true;
+        }
+
+        updatedFields.push({
+          ...existingObj,
+          ...incoming,
+          fieldId, // maintain immutable fieldId
+          deleted: incoming.deleted ?? existing.deleted ?? false,
+        });
+      } else {
+        fieldsChanged = true;
+        updatedFields.push({
+          ...incoming,
+          fieldId,
+          deleted: incoming.deleted ?? false,
+        });
+      }
+    }
+
+    // Soft delete: Keep existing fields not in the incoming list, marked deleted: true
+    for (const existing of existingFields) {
+      if (existing.fieldId && !incomingFieldIds.has(existing.fieldId)) {
+        const existingObj = JSON.parse(JSON.stringify(existing));
+        if (!existingObj.deleted) {
+          fieldsChanged = true;
+          existingObj.deleted = true;
+        }
+        updatedFields.push(existingObj);
+      }
+    }
+
+    return { fields: updatedFields, fieldsChanged };
+  }
+
+  async createForm(workspaceId: string, formDetails: Partial<IForm>): Promise<IForm> {
+    if (formDetails.fields) {
+      formDetails.fields = formDetails.fields.map((f: any) => {
+        if (!f.fieldId) {
+          f.fieldId = new mongoose.Types.ObjectId().toString();
+        }
+        f.deleted = f.deleted ?? false;
+        return f;
+      });
+    }
+    if (!formDetails.slug) {
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      const base = formDetails.title ? formDetails.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "form";
+      formDetails.slug = `${base}-${randomSuffix}`.replace(/-+/g, "-");
+    }
+    formDetails.schemaVersion = 1;
+    return await this.formRepository.create(workspaceId, formDetails);
+  }
+
+  async getFormById(formId: string, workspaceId: string): Promise<IForm> {
+    const exists = await this.formRepository.findById(formId);
+    if (!exists) {
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    const form = await this.formRepository.findById(formId, workspaceId);
+    if (!form) {
+      const err = new Error("Forbidden: You do not own this form's workspace");
+      (err as any).statusCode = 403;
+      throw err;
+    }
+    return form;
+  }
+
+  async listForms(
+    workspaceId: string,
+    options: {
+      search?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+    }
+  ) {
+    const page = Number(options.page) || 1;
+    const limit = Number(options.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const query: any = { workspaceId };
+
+    if (options.status) {
+      query.status = options.status;
+    }
+
+    if (options.search) {
+      query.title = { $regex: options.search, $options: "i" };
+    }
+
+    const [forms, total] = await Promise.all([
+      this.formRepository.findWithPagination(query, skip, limit, workspaceId),
+      this.formRepository.count(query, workspaceId),
+    ]);
+
+    const pages = Math.ceil(total / limit);
+
+    return {
+      forms,
+      total,
+      page,
+      limit,
+      pages,
+    };
+  }
+
+  async updateForm(
+    formId: string,
+    workspaceId: string,
+    updateDetails: Partial<IForm>
+  ): Promise<IForm> {
+    const existing = await this.getFormById(formId, workspaceId);
+
+    if (updateDetails.fields) {
+      const { fields, fieldsChanged } = this.processFieldsUpdate(existing.fields, updateDetails.fields);
+      updateDetails.fields = fields;
+      if (fieldsChanged) {
+        updateDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
+      } else {
+        updateDetails.schemaVersion = existing.schemaVersion || 1;
+      }
+    }
+
+    const updated = await this.formRepository.update(formId, workspaceId, updateDetails);
+    if (!updated) {
+      const err = new Error("Form not found for update");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    return updated;
+  }
+
+  async patchForm(
+    formId: string,
+    workspaceId: string,
+    patchDetails: Partial<IForm>
+  ): Promise<IForm> {
+    const existing = await this.getFormById(formId, workspaceId);
+
+    if (patchDetails.fields) {
+      const { fields, fieldsChanged } = this.processFieldsUpdate(existing.fields, patchDetails.fields);
+      patchDetails.fields = fields;
+      if (fieldsChanged) {
+        patchDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
+      } else {
+        patchDetails.schemaVersion = existing.schemaVersion || 1;
+      }
+    }
+
+    const updated = await this.formRepository.update(formId, workspaceId, patchDetails);
+    if (!updated) {
+      const err = new Error("Form not found for update");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    return updated;
+  }
+
+  async deleteForm(formId: string, workspaceId: string): Promise<void> {
+    await this.getFormById(formId, workspaceId);
+    
+    // 1. Delete associated responses
+    await ResponseModel.deleteMany({ formId });
+
+    // 2. Delete associated simulated files
+    console.log(`Successfully deleted uploaded files associated with form: ${formId}`);
+
+    // 3. Delete the form
+    await this.formRepository.delete(formId, workspaceId);
+  }
+
+  async submitForm(formId: string, answers: Record<string, any>) {
+    const form = await this.formRepository.findById(formId);
+    if (!form) {
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    // Dynamic validation logic against form fields
+    for (const field of form.fields) {
+      if (field.deleted) {
+        continue;
+      }
+      const value = answers[field.label];
+      
+      // 1. Required check
+      if (field.required && (value === undefined || value === null || value === "")) {
+        const err = new Error(`Field "${field.label}" is required.`);
+        (err as any).statusCode = 400;
+        throw err;
+      }
+
+      if (value !== undefined && value !== null && value !== "") {
+        // 2. Validate Text and Long Text shapes (minLength, maxLength)
+        if (field.type === "text" || field.type === "textarea") {
+          if (typeof value !== "string") {
+            const err = new Error(`Field "${field.label}" must be a string.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          if (field.minLength !== undefined && value.length < field.minLength) {
+            const err = new Error(`Field "${field.label}" must be at least ${field.minLength} characters.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          if (field.maxLength !== undefined && value.length > field.maxLength) {
+            const err = new Error(`Field "${field.label}" cannot exceed ${field.maxLength} characters.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+        }
+
+        // 3. Validate Email shape
+        if (field.type === "email") {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (typeof value !== "string" || !emailRegex.test(value)) {
+            const err = new Error(`Field "${field.label}" must be a valid email address.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+        }
+
+        // 4. Validate Phone shape (with optional regex pattern)
+        if (field.type === "phone") {
+          if (typeof value !== "string") {
+            const err = new Error(`Field "${field.label}" must be a string.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          if (field.pattern) {
+            const regex = new RegExp(field.pattern);
+            if (!regex.test(value)) {
+              const err = new Error(`Field "${field.label}" must match format pattern: ${field.pattern}.`);
+              (err as any).statusCode = 400;
+              throw err;
+            }
+          }
+        }
+
+        // 5. Validate Number shape (min, max)
+        if (field.type === "number") {
+          const numValue = Number(value);
+          if (isNaN(numValue)) {
+            const err = new Error(`Field "${field.label}" must be a valid number.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          if (field.min !== undefined && numValue < field.min) {
+            const err = new Error(`Field "${field.label}" must be at least ${field.min}.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          if (field.max !== undefined && numValue > field.max) {
+            const err = new Error(`Field "${field.label}" cannot exceed ${field.max}.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+        }
+
+        // 6. Validate Date shape (minDate, maxDate)
+        if (field.type === "date") {
+          const dateValue = new Date(value);
+          if (isNaN(dateValue.getTime())) {
+            const err = new Error(`Field "${field.label}" must be a valid date.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          if (field.minDate) {
+            const minDateVal = new Date(field.minDate);
+            if (!isNaN(minDateVal.getTime()) && dateValue < minDateVal) {
+              const err = new Error(`Field "${field.label}" date cannot be earlier than ${field.minDate}.`);
+              (err as any).statusCode = 400;
+              throw err;
+            }
+          }
+          if (field.maxDate) {
+            const maxDateVal = new Date(field.maxDate);
+            if (!isNaN(maxDateVal.getTime()) && dateValue > maxDateVal) {
+              const err = new Error(`Field "${field.label}" date cannot be later than ${field.maxDate}.`);
+              (err as any).statusCode = 400;
+              throw err;
+            }
+          }
+        }
+
+        // 7. Validate Dropdown and Multiple Choice (options check)
+        if (field.type === "dropdown" || field.type === "multiple_choice") {
+          if (!field.options || !field.options.includes(value)) {
+            const err = new Error(`Value "${value}" is not a valid option for field "${field.label}". Valid options: ${(field.options || []).join(", ")}`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+        }
+
+        // 8. Validate Checkbox options (single or multi-select option checks)
+        if (field.type === "checkbox") {
+          if (field.options && field.options.length > 0) {
+            const selectedArr = Array.isArray(value) ? value : [value];
+            for (const val of selectedArr) {
+              if (!field.options.includes(val)) {
+                const err = new Error(`Value "${val}" is not a valid option for checkbox field "${field.label}".`);
+                (err as any).statusCode = 400;
+                throw err;
+              }
+            }
+          } else {
+            if (typeof value !== "boolean" && value !== "true" && value !== "false" && value !== true && value !== false) {
+              const err = new Error(`Field "${field.label}" must be a boolean (true/false).`);
+              (err as any).statusCode = 400;
+              throw err;
+            }
+          }
+        }
+
+        // 9. Validate File Upload settings (maxFileSize, allowedMimeTypes check)
+        if (field.type === "file") {
+          if (typeof value !== "object" || !value.fileName || value.fileSize === undefined || !value.mimeType) {
+            const err = new Error(`Field "${field.label}" must be a valid file upload payload containing fileName, fileSize (bytes), and mimeType.`);
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          if (field.maxFileSize !== undefined) {
+            const fileSizeMB = value.fileSize / (1024 * 1024);
+            if (fileSizeMB > field.maxFileSize) {
+              const err = new Error(`Field "${field.label}" file size exceeds the limit of ${field.maxFileSize} MB.`);
+              (err as any).statusCode = 400;
+              throw err;
+            }
+          }
+          if (field.allowedMimeTypes && field.allowedMimeTypes.length > 0) {
+            if (!field.allowedMimeTypes.includes(value.mimeType)) {
+              const err = new Error(`Field "${field.label}" file type "${value.mimeType}" is not allowed. Allowed types: ${field.allowedMimeTypes.join(", ")}.`);
+              (err as any).statusCode = 400;
+              throw err;
+            }
+          }
+        }
+      }
+    }
+
+    return await ResponseModel.create({
+      formId,
+      answers,
+    });
+  }
+
+  async getSubmissions(formId: string, workspaceId: string) {
+    await this.getFormById(formId, workspaceId);
+    return await ResponseModel.find({ formId });
+  }
+
+  async duplicateForm(formId: string, workspaceId: string): Promise<IForm> {
+    const originalForm = await this.getFormById(formId, workspaceId);
+
+    // Deep copy fields
+    const duplicatedFields = originalForm.fields.map((field) => {
+      const fieldObj = JSON.parse(JSON.stringify(field));
+      // Keep field structure intact (including labels, types, properties, fieldId)
+      return fieldObj;
+    });
+
+    // Create a fresh unique slug
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const originalSlug = originalForm.slug || originalForm.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const freshSlug = `copy-of-${originalSlug}-${randomSuffix}`.replace(/-+/g, "-");
+
+    // Construct duplicate form object
+    const duplicateData = {
+      title: `Copy of ${originalForm.title}`,
+      description: originalForm.description,
+      workspaceId: originalForm.workspaceId,
+      status: originalForm.status,
+      fields: duplicatedFields,
+      schemaVersion: 1,
+      slug: freshSlug,
+      // Do NOT carry over a publishedSlug
+      publishedSlug: undefined,
+    };
+
+    return await this.formRepository.create(workspaceId, duplicateData as any);
+  }
+}
+
+function deepEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    if (Array.isArray(a)) {
+      if (!Array.isArray(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (!deepEqual(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    const keysA = Object.keys(a).filter(k => a[k] !== undefined && a[k] !== null && (Array.isArray(a[k]) ? a[k].length > 0 : true));
+    const keysB = Object.keys(b).filter(k => b[k] !== undefined && b[k] !== null && (Array.isArray(b[k]) ? b[k].length > 0 : true));
+    
+    const setA = new Set(keysA);
+    const setB = new Set(keysB);
+    if (setA.size !== setB.size) return false;
+    for (const key of setA) {
+      if (!setB.has(key)) return false;
+      if (!deepEqual(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  return false;
+}
+

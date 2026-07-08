@@ -1,0 +1,90 @@
+meta {
+  name: Create Form
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/api/forms
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Full Registration Form",
+    "description": "A comprehensive onboarding form showcasing all 10 field types",
+    "status": "active",
+    "slug": "registration-slug",
+    "fields": [
+      {
+        "label": "Short Text Field",
+        "type": "text",
+        "required": true,
+        "minLength": 2,
+        "maxLength": 50
+      },
+      {
+        "label": "Long Text Field",
+        "type": "textarea",
+        "required": false,
+        "minLength": 10,
+        "maxLength": 500
+      },
+      {
+        "label": "Email Address",
+        "type": "email",
+        "required": true
+      },
+      {
+        "label": "Phone Number",
+        "type": "phone",
+        "required": false,
+        "pattern": "^\\+?[0-9]{10,15}$"
+      },
+      {
+        "label": "Age Number",
+        "type": "number",
+        "required": true,
+        "min": 18,
+        "max": 100
+      },
+      {
+        "label": "Appointment Date",
+        "type": "date",
+        "required": false,
+        "minDate": "2026-01-01",
+        "maxDate": "2026-12-31"
+      },
+      {
+        "label": "Preferred Options",
+        "type": "dropdown",
+        "required": true,
+        "options": ["Option A", "Option B", "Option C"]
+      },
+      {
+        "label": "Single Selection",
+        "type": "multiple_choice",
+        "required": true,
+        "options": ["Choice 1", "Choice 2", "Choice 3"]
+      },
+      {
+        "label": "Multi Selection Checklist",
+        "type": "checkbox",
+        "required": false,
+        "options": ["Item A", "Item B"]
+      },
+      {
+        "label": "Resume File Upload",
+        "type": "file",
+        "required": false,
+        "maxFileSize": 5,
+        "allowedMimeTypes": ["application/pdf", "image/jpeg"]
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}

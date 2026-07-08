@@ -1,0 +1,23 @@
+meta {
+  name: Failure - 403 Forbidden
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{base_url}}/api/forms/:formId
+  body: none
+  auth: none
+}
+
+params:path {
+  formId: {{formId}}
+}
+
+headers {
+  Authorization: Bearer {{userBToken}}
+}
+
+assert {
+  res.status: eq 403
+}

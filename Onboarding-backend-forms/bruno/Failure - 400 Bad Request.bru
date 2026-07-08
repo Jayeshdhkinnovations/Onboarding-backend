@@ -1,0 +1,31 @@
+meta {
+  name: Failure - 400 Bad Request
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{base_url}}/api/forms
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Invalid Form",
+    "description": "This request triggers a 400 Bad Request due to validation failures (minLength > maxLength)",
+    "fields": [
+      {
+        "label": "Short Text Field",
+        "type": "text",
+        "required": true,
+        "minLength": 50,
+        "maxLength": 10
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 400
+}

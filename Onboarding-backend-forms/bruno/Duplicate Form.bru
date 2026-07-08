@@ -1,0 +1,19 @@
+meta {
+  name: Duplicate Form
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/forms/:formId/duplicate
+  body: none
+  auth: inherit
+}
+
+params:path {
+  formId: {{formId}}
+}
+
+assert {
+  res.status: eq 201
+}
