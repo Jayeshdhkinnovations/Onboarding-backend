@@ -136,10 +136,21 @@ export class FormService {
       this.formRepository.count(query, workspaceId),
     ]);
 
+    const formsWithCount = await Promise.all(
+      forms.map(async (f) => {
+        const doc = f.toObject ? f.toObject() : f;
+        const responseCount = await ResponseModel.countDocuments({ formId: doc._id });
+        return {
+          ...doc,
+          responseCount,
+        };
+      })
+    );
+
     const pages = Math.ceil(total / limit);
 
     return {
-      forms,
+      forms: formsWithCount,
       total,
       page,
       limit,

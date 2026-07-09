@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Form, { IForm } from "../models/Form";
 
 export class FormRepository {
@@ -6,6 +7,9 @@ export class FormRepository {
   }
 
   async findById(id: string, workspaceId?: string): Promise<IForm | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new mongoose.Error.CastError("ObjectId", id, "_id");
+    }
     const query: any = { _id: id };
     if (workspaceId) {
       query.workspaceId = workspaceId;
@@ -43,10 +47,16 @@ export class FormRepository {
   }
 
   async update(id: string, workspaceId: string, data: Partial<IForm>): Promise<IForm | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new mongoose.Error.CastError("ObjectId", id, "_id");
+    }
     return await Form.findOneAndUpdate({ _id: id, workspaceId }, data, { new: true });
   }
 
   async delete(id: string, workspaceId: string): Promise<IForm | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new mongoose.Error.CastError("ObjectId", id, "_id");
+    }
     return await Form.findOneAndDelete({ _id: id, workspaceId });
   }
 }

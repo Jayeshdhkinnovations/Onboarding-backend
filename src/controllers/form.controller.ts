@@ -53,6 +53,16 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
     const form = await formService.createForm(workspaceId, validatedData);
 
     res.status(201).json({
+      _id: form._id,
+      title: form.title,
+      description: form.description,
+      workspaceId: form.workspaceId,
+      status: form.status,
+      fields: form.fields,
+      schemaVersion: form.schemaVersion,
+      createdAt: form.createdAt,
+      updatedAt: form.updatedAt,
+      // For compatibility
       success: true,
       message: "Form created successfully",
       form,
@@ -98,6 +108,16 @@ export const getForm = async (req: Request, res: Response, next: NextFunction): 
     const form = await formService.getFormById(formId as string, workspaceId);
 
     res.status(200).json({
+      _id: form._id,
+      title: form.title,
+      description: form.description,
+      workspaceId: form.workspaceId,
+      status: form.status,
+      fields: form.fields,
+      schemaVersion: form.schemaVersion,
+      createdAt: form.createdAt,
+      updatedAt: form.updatedAt,
+      // For compatibility
       success: true,
       form,
     });
@@ -195,6 +215,16 @@ export const updateForm = async (req: Request, res: Response, next: NextFunction
     const form = await formService.updateForm(formId as string, workspaceId, req.body);
 
     res.status(200).json({
+      _id: form._id,
+      title: form.title,
+      description: form.description,
+      workspaceId: form.workspaceId,
+      status: form.status,
+      fields: form.fields,
+      schemaVersion: form.schemaVersion,
+      createdAt: form.createdAt,
+      updatedAt: form.updatedAt,
+      // For compatibility
       success: true,
       message: "Form updated successfully",
       form,
@@ -242,6 +272,16 @@ export const patchForm = async (req: Request, res: Response, next: NextFunction)
     const form = await formService.patchForm(formId as string, workspaceId, validatedData);
 
     res.status(200).json({
+      _id: form._id,
+      title: form.title,
+      description: form.description,
+      workspaceId: form.workspaceId,
+      status: form.status,
+      fields: form.fields,
+      schemaVersion: form.schemaVersion,
+      createdAt: form.createdAt,
+      updatedAt: form.updatedAt,
+      // For compatibility
       success: true,
       message: "Form updated successfully",
       form,
@@ -389,6 +429,16 @@ export const duplicateForm = async (req: Request, res: Response, next: NextFunct
     const form = await formService.duplicateForm(formId as string, workspaceId);
 
     res.status(201).json({
+      _id: form._id,
+      title: form.title,
+      description: form.description,
+      workspaceId: form.workspaceId,
+      status: form.status,
+      fields: form.fields,
+      schemaVersion: form.schemaVersion,
+      createdAt: form.createdAt,
+      updatedAt: form.updatedAt,
+      // For compatibility
       success: true,
       message: "Form duplicated successfully",
       form,

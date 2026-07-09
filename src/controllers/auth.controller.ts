@@ -104,9 +104,19 @@ export const getMe = async (
       return;
     }
 
+    const u = authReq.user;
     res.status(200).json({
       success: true,
-      user: authReq.user,
+      user: {
+        id: u._id.toString(),
+        name: u.fullName,
+        email: u.email,
+        workspaceId: u.workspaceId?._id ? u.workspaceId._id.toString() : u.workspaceId?.toString() || "",
+        // Keep MongoDB properties for backwards compatibility
+        _id: u._id.toString(),
+        fullName: u.fullName,
+        role: u.role,
+      },
     });
   } catch (error: any) {
     res.status(500).json({
