@@ -236,7 +236,7 @@ export class FormService {
 
       if (value !== undefined && value !== null && value !== "") {
         // 2. Validate Text and Long Text shapes (minLength, maxLength)
-        if (field.type === "text" || field.type === "textarea") {
+        if (field.type === "short_text" || field.type === "long_text") {
           if (typeof value !== "string") {
             const err = new Error(`Field "${field.label}" must be a string.`);
             (err as any).statusCode = 400;
@@ -357,7 +357,7 @@ export class FormService {
         }
 
         // 9. Validate File Upload settings (maxFileSize, allowedMimeTypes check)
-        if (field.type === "file") {
+        if (field.type === "file_upload") {
           if (typeof value !== "object" || !value.fileName || value.fileSize === undefined || !value.mimeType) {
             const err = new Error(`Field "${field.label}" must be a valid file upload payload containing fileName, fileSize (bytes), and mimeType.`);
             (err as any).statusCode = 400;

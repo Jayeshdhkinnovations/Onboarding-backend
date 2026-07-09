@@ -4,8 +4,8 @@ export interface IFormField {
   fieldId?: string;
   label: string;
   type:
-    | "text"
-    | "textarea"
+    | "short_text"
+    | "long_text"
     | "email"
     | "phone"
     | "number"
@@ -13,7 +13,7 @@ export interface IFormField {
     | "dropdown"
     | "multiple_choice"
     | "checkbox"
-    | "file";
+    | "file_upload";
   required: boolean;
   deleted?: boolean;
 
@@ -50,8 +50,8 @@ const FormFieldSchema = new Schema<IFormField>({
     type: String,
     required: true,
     enum: [
-      "text",
-      "textarea",
+      "short_text",
+      "long_text",
       "email",
       "phone",
       "number",
@@ -59,7 +59,7 @@ const FormFieldSchema = new Schema<IFormField>({
       "dropdown",
       "multiple_choice",
       "checkbox",
-      "file",
+      "file_upload",
     ],
   },
   required: { type: Boolean, default: false },

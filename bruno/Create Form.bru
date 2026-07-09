@@ -19,14 +19,14 @@ body:json {
     "fields": [
       {
         "label": "Short Text Field",
-        "type": "text",
+        "type": "short_text",
         "required": true,
         "minLength": 2,
         "maxLength": 50
       },
       {
         "label": "Long Text Field",
-        "type": "textarea",
+        "type": "long_text",
         "required": false,
         "minLength": 10,
         "maxLength": 500
@@ -76,7 +76,7 @@ body:json {
       },
       {
         "label": "Resume File Upload",
-        "type": "file",
+        "type": "file_upload",
         "required": false,
         "maxFileSize": 5,
         "allowedMimeTypes": ["application/pdf", "image/jpeg"]

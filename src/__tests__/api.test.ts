@@ -415,7 +415,7 @@ describe("Onboarding Platform Integration Tests", () => {
 
       // 1. Create Form
       const fields = [
-        { label: "Full Name", type: "text", required: true },
+        { label: "Full Name", type: "short_text", required: true },
         { label: "Favorite color", type: "dropdown", required: false, options: ["Red", "Blue", "Green"] }
       ];
 
@@ -710,7 +710,7 @@ describe("Onboarding Platform Integration Tests", () => {
         description: "Form belonging to Workspace A",
         workspaceId: wsA._id,
         status: "active",
-        fields: [{ label: "Name", type: "text", required: true }],
+        fields: [{ label: "Name", type: "short_text", required: true }],
       });
 
       // Generate tokens
@@ -881,8 +881,8 @@ describe("Onboarding Platform Integration Tests", () => {
 
     it("Create a form successfully with all 10 field types populated correctly", async () => {
       const fields = [
-        { label: "Short Text Field", type: "text", required: true, minLength: 2, maxLength: 10 },
-        { label: "Long Text Field", type: "textarea", required: false, minLength: 5, maxLength: 100 },
+        { label: "Short Text Field", type: "short_text", required: true, minLength: 2, maxLength: 10 },
+        { label: "Long Text Field", type: "long_text", required: false, minLength: 5, maxLength: 100 },
         { label: "Email Field", type: "email", required: true },
         { label: "Phone Field", type: "phone", required: false, pattern: "^\\+?[0-9]{10,15}$" },
         { label: "Number Field", type: "number", required: true, min: 10, max: 100 },
@@ -890,7 +890,7 @@ describe("Onboarding Platform Integration Tests", () => {
         { label: "Dropdown Field", type: "dropdown", required: true, options: ["Apple", "Banana", "Cherry"] },
         { label: "Multiple Choice Field", type: "multiple_choice", required: true, options: ["Yes", "No", "Maybe"] },
         { label: "Checkbox Field", type: "checkbox", required: false, options: ["Red", "Green", "Blue"] },
-        { label: "File Upload Field", type: "file", required: false, maxFileSize: 5, allowedMimeTypes: ["image/png", "application/pdf"] }
+        { label: "File Upload Field", type: "file_upload", required: false, maxFileSize: 5, allowedMimeTypes: ["image/png", "application/pdf"] }
       ];
 
       const res = await request(app)
@@ -912,12 +912,12 @@ describe("Onboarding Platform Integration Tests", () => {
 
     it("Reject invalid field schemas with a 400 and descriptive messages", async () => {
       const badFields = [
-        { label: "Bad Text", type: "text", minLength: 10, maxLength: 5 }, // minLength > maxLength
+        { label: "Bad Text", type: "short_text", minLength: 10, maxLength: 5 }, // minLength > maxLength
         { label: "Bad Number", type: "number", min: 100, max: 50 },      // min > max
         { label: "Bad Date", type: "date", minDate: "2026-12-31", maxDate: "2026-01-01" }, // minDate > maxDate
         { label: "Bad Dropdown", type: "dropdown", options: [] },        // empty options
         { label: "Bad MC", type: "multiple_choice", options: [""] },     // empty option string
-        { label: "Bad File", type: "file", maxFileSize: -2 }             // negative file size
+        { label: "Bad File", type: "file_upload", maxFileSize: -2 }             // negative file size
       ];
 
       for (const bad of badFields) {
@@ -941,7 +941,7 @@ describe("Onboarding Platform Integration Tests", () => {
         .send({
           title: "Soft Delete Form",
           fields: [
-            { label: "First Field", type: "text", required: true },
+            { label: "First Field", type: "short_text", required: true },
             { label: "Second Field", type: "number", required: false }
           ]
         });
@@ -960,7 +960,7 @@ describe("Onboarding Platform Integration Tests", () => {
         .send({
           title: "Soft Delete Form Updated",
           fields: [
-            { fieldId: f1.fieldId, label: "First Field Renamed", type: "text", required: true }
+            { fieldId: f1.fieldId, label: "First Field Renamed", type: "short_text", required: true }
           ]
         });
 
@@ -988,7 +988,7 @@ describe("Onboarding Platform Integration Tests", () => {
         .send({
           title: "Immutability Form",
           fields: [
-            { label: "Static Field", type: "text" }
+            { label: "Static Field", type: "short_text" }
           ]
         });
 
@@ -1003,7 +1003,7 @@ describe("Onboarding Platform Integration Tests", () => {
         .send({
           title: "Immutability Form",
           fields: [
-            { fieldId: "new-mutated-id", label: "Static Field", type: "text" }
+            { fieldId: "new-mutated-id", label: "Static Field", type: "short_text" }
           ]
         });
 
@@ -1025,8 +1025,8 @@ describe("Onboarding Platform Integration Tests", () => {
         .send({
           title: "Submission Validator Form",
           fields: [
-            { label: "Text", type: "text", required: true, minLength: 3, maxLength: 8 },
-            { label: "Textarea", type: "textarea", required: false, minLength: 5 },
+            { label: "Text", type: "short_text", required: true, minLength: 3, maxLength: 8 },
+            { label: "Textarea", type: "long_text", required: false, minLength: 5 },
             { label: "Email", type: "email", required: true },
             { label: "Phone", type: "phone", pattern: "^\\+1[0-9]{10}$" },
             { label: "Number", type: "number", min: 10, max: 20 },
@@ -1035,7 +1035,7 @@ describe("Onboarding Platform Integration Tests", () => {
             { label: "MultipleChoice", type: "multiple_choice", options: ["Yes", "No"] },
             { label: "CheckboxSingle", type: "checkbox" },
             { label: "CheckboxMulti", type: "checkbox", options: ["Red", "Blue"] },
-            { label: "File", type: "file", maxFileSize: 2, allowedMimeTypes: ["image/jpeg"] }
+            { label: "File", type: "file_upload", maxFileSize: 2, allowedMimeTypes: ["image/jpeg"] }
           ]
         });
 
@@ -1177,7 +1177,7 @@ describe("Onboarding Platform Integration Tests", () => {
           title: "Source Form",
           slug: "custom-slug-123",
           publishedSlug: "published-slug-456",
-          fields: [{ label: "Name", type: "text" }]
+          fields: [{ label: "Name", type: "short_text" }]
         });
 
       const originalForm = createRes.body.form;

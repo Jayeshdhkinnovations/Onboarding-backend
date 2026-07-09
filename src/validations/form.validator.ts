@@ -12,13 +12,13 @@ const baseFieldSchema = z.object({
 });
 
 const shortTextObj = baseFieldSchema.extend({
-  type: z.literal("text"),
+  type: z.literal("short_text"),
   minLength: z.number().nonnegative("minLength must be non-negative").optional(),
   maxLength: z.number().nonnegative("maxLength must be non-negative").optional(),
 });
 
 const longTextObj = baseFieldSchema.extend({
-  type: z.literal("textarea"),
+  type: z.literal("long_text"),
   minLength: z.number().nonnegative("minLength must be non-negative").optional(),
   maxLength: z.number().nonnegative("maxLength must be non-negative").optional(),
 });
@@ -64,7 +64,7 @@ const checkboxObj = baseFieldSchema.extend({
 });
 
 const fileUploadObj = baseFieldSchema.extend({
-  type: z.literal("file"),
+  type: z.literal("file_upload"),
   maxFileSize: z.number().positive("maxFileSize must be positive").optional(), // in MB
   allowedMimeTypes: z.array(z.string().trim().min(1, "MIME type cannot be empty")).optional(),
 });
@@ -83,7 +83,7 @@ export const fieldSchema = z
     fileUploadObj,
   ])
   .superRefine((data, ctx) => {
-    if (data.type === "text" || data.type === "textarea") {
+    if (data.type === "short_text" || data.type === "long_text") {
       if (data.minLength !== undefined && data.maxLength !== undefined && data.minLength > data.maxLength) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

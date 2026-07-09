@@ -117,14 +117,14 @@ describe("Form API Property-Based Testing", () => {
 
   const textArb = fc.record({
     ...baseArb,
-    type: fc.constant("text" as const),
+    type: fc.constant("short_text" as const),
     minLength: fc.integer({ min: 0, max: 5 }),
     maxLength: fc.integer({ min: 6, max: 50 }),
   });
 
   const textareaArb = fc.record({
     ...baseArb,
-    type: fc.constant("textarea" as const),
+    type: fc.constant("long_text" as const),
     minLength: fc.integer({ min: 0, max: 5 }),
     maxLength: fc.integer({ min: 6, max: 50 }),
   });
@@ -174,7 +174,7 @@ describe("Form API Property-Based Testing", () => {
 
   const fileArb = fc.record({
     ...baseArb,
-    type: fc.constant("file" as const),
+    type: fc.constant("file_upload" as const),
     maxFileSize: fc.integer({ min: 1, max: 10 }),
     allowedMimeTypes: fc.array(fc.constantFrom("image/png", "image/jpeg", "application/pdf"), { minLength: 1, maxLength: 2 }),
   });
@@ -250,7 +250,7 @@ describe("Form API Property-Based Testing", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({
         title: "Initial Form",
-        fields: [{ label: "Original Text", type: "text" }]
+        fields: [{ label: "Original Text", type: "short_text" }]
       });
     const formId = createRes.body.form._id;
 
@@ -305,7 +305,7 @@ describe("Form API Property-Based Testing", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({
         title: "Admin A Form",
-        fields: [{ label: "A Text", type: "text" }]
+        fields: [{ label: "A Text", type: "short_text" }]
       });
     const formId = createRes.body.form._id;
 
