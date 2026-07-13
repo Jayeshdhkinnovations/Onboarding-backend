@@ -49,6 +49,9 @@ export const errorHandler = (
   res.status(statusCode).json({
     success: false,
     message: err.message || "Internal Server Error",
-    error: { message: err.message || "Internal Server Error" }
+    error: {
+      message: err.message || "Internal Server Error",
+      ...(err.code ? { code: err.code } : {}),
+    }
   });
 };

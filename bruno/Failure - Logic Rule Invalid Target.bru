@@ -1,0 +1,37 @@
+meta {
+  name: Failure - Logic Rule Invalid Target
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{base_url}}/api/forms
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Bad Logic Target Form",
+    "description": "This request triggers a 400 because a logic rule targets a fieldId that does not exist on the form",
+    "fields": [
+      {
+        "label": "Source Field",
+        "type": "short_text",
+        "required": false,
+        "logicRules": [
+          {
+            "targetFieldId": "does-not-exist",
+            "operator": "equals",
+            "value": "yes",
+            "action": "hide"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 400
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Failure - Number Min Max
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{base_url}}/api/forms
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Bad Number Range Form",
+    "description": "This request triggers a 400 because min equals max on a number field",
+    "fields": [
+      {
+        "label": "Age",
+        "type": "number",
+        "required": true,
+        "min": 18,
+        "max": 18
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 400
+}

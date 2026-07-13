@@ -269,6 +269,18 @@ export const patchForm = async (req: Request, res: Response, next: NextFunction)
     // Validate payload using Zod patch schema
     const validatedData = patchFormSchema.parse(req.body);
 
+    if (validatedData.status === "published") {
+      const form = await formService.publishForm(formId as string, workspaceId, validatedData);
+      res.status(200).json({
+        _id: form._id,
+        status: form.status,
+        slug: form.publishedSlug,
+        publishedAt: form.publishedAt,
+        success: true,
+      });
+      return;
+    }
+
     const form = await formService.patchForm(formId as string, workspaceId, validatedData);
 
     res.status(200).json({
@@ -285,6 +297,96 @@ export const patchForm = async (req: Request, res: Response, next: NextFunction)
       success: true,
       message: "Form updated successfully",
       form,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const publishForm = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authReq = req as any;
+    if (!authReq.user) {
+      res.status(401).json({
+        success: false,
+        message: "Not authorized",
+        error: { message: "Not authorized" }
+      });
+      return;
+    }
+
+    if (req.body?.workspaceId || req.params?.workspaceId) {
+      res.status(400).json({
+        success: false,
+        message: "workspaceId must not be provided in body or params",
+        error: { message: "workspaceId must not be provided in body or params" }
+      });
+      return;
+    }
+
+    const formId = req.params.formId || req.params.id;
+    const workspaceId = await getWorkspaceIdFromUser(authReq.user);
+    if (!workspaceId) {
+      res.status(403).json({
+        success: false,
+        message: "Forbidden: No active workspace found for this user",
+        error: { message: "Forbidden: No active workspace found for this user" }
+      });
+      return;
+    }
+
+    const form = await formService.publishForm(formId as string, workspaceId);
+
+    res.status(200).json({
+      _id: form._id,
+      status: form.status,
+      slug: form.publishedSlug,
+      publishedAt: form.publishedAt,
+      success: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const closeForm = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authReq = req as any;
+    if (!authReq.user) {
+      res.status(401).json({
+        success: false,
+        message: "Not authorized",
+        error: { message: "Not authorized" }
+      });
+      return;
+    }
+
+    if (req.body?.workspaceId || req.params?.workspaceId) {
+      res.status(400).json({
+        success: false,
+        message: "workspaceId must not be provided in body or params",
+        error: { message: "workspaceId must not be provided in body or params" }
+      });
+      return;
+    }
+
+    const formId = req.params.formId || req.params.id;
+    const workspaceId = await getWorkspaceIdFromUser(authReq.user);
+    if (!workspaceId) {
+      res.status(403).json({
+        success: false,
+        message: "Forbidden: No active workspace found for this user",
+        error: { message: "Forbidden: No active workspace found for this user" }
+      });
+      return;
+    }
+
+    const form = await formService.closeForm(formId as string, workspaceId);
+
+    res.status(200).json({
+      _id: form._id,
+      status: form.status,
+      success: true,
     });
   } catch (error) {
     next(error);

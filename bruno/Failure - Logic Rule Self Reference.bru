@@ -1,0 +1,38 @@
+meta {
+  name: Failure - Logic Rule Self Reference
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{base_url}}/api/forms
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Self Reference Logic Form",
+    "description": "This request triggers a 400 because a logic rule's target is the same field it is defined on",
+    "fields": [
+      {
+        "fieldId": "self-ref-field",
+        "label": "Source Field",
+        "type": "short_text",
+        "required": false,
+        "logicRules": [
+          {
+            "targetFieldId": "self-ref-field",
+            "operator": "equals",
+            "value": "yes",
+            "action": "hide"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 400
+}

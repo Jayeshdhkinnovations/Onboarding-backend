@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export interface ILogicRule {
+  ruleId?: string;
+  targetFieldId: string;
+  operator: "equals";
+  value: string;
+  action: "show" | "hide";
+}
+
 export interface IFormField {
   fieldId?: string;
   label: string;
@@ -28,20 +36,49 @@ export interface IFormField {
   options?: string[];
   maxFileSize?: number;
   allowedMimeTypes?: string[];
+  logicRules?: ILogicRule[];
+}
+
+export interface IBranding {
+  primaryColor?: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+}
+
+export interface IFormSettings {
+  successMessage?: string;
+  responseLimitEnabled?: boolean;
+  responseLimit?: number;
+  closeDate?: string;
+  honeypotEnabled?: boolean;
 }
 
 export interface IForm extends Document {
   title: string;
   description?: string;
   workspaceId: mongoose.Types.ObjectId;
-  status: "active" | "inactive";
+  status: "draft" | "published" | "closed";
   fields: IFormField[];
   schemaVersion: number;
   slug?: string;
   publishedSlug?: string;
+  publishedAt?: Date;
+  branding?: IBranding;
+  settings?: IFormSettings;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const LogicRuleSchema = new Schema<ILogicRule>(
+  {
+    ruleId: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
+    targetFieldId: { type: String, required: true },
+    operator: { type: String, enum: ["equals"], default: "equals" },
+    value: { type: String, required: true },
+    action: { type: String, enum: ["show", "hide"], required: true },
+  },
+  { _id: false }
+);
 
 const FormFieldSchema = new Schema<IFormField>({
   fieldId: { type: String, required: true, default: () => new mongoose.Types.ObjectId().toString() },
@@ -76,7 +113,28 @@ const FormFieldSchema = new Schema<IFormField>({
   options: { type: [String], default: [] },
   maxFileSize: { type: Number },
   allowedMimeTypes: { type: [String], default: [] },
+  logicRules: { type: [LogicRuleSchema], default: [] },
 });
+
+const BrandingSchema = new Schema<IBranding>(
+  {
+    primaryColor: { type: String },
+    logoUrl: { type: String },
+    coverImageUrl: { type: String },
+  },
+  { _id: false }
+);
+
+const FormSettingsSchema = new Schema<IFormSettings>(
+  {
+    successMessage: { type: String },
+    responseLimitEnabled: { type: Boolean, default: false },
+    responseLimit: { type: Number },
+    closeDate: { type: String },
+    honeypotEnabled: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
 
 const FormSchema = new Schema<IForm>(
   {
@@ -90,8 +148,8 @@ const FormSchema = new Schema<IForm>(
     },
     status: {
       type: String,
-      enum: ["active", "inactive"],
-      default: "active",
+      enum: ["draft", "published", "closed"],
+      default: "draft",
       index: true,
     },
     fields: { type: [FormFieldSchema], default: [] },
@@ -102,6 +160,9 @@ const FormSchema = new Schema<IForm>(
     },
     slug: { type: String, unique: true, sparse: true, index: true },
     publishedSlug: { type: String, unique: true, sparse: true, index: true },
+    publishedAt: { type: Date },
+    branding: { type: BrandingSchema, default: {} },
+    settings: { type: FormSettingsSchema, default: {} },
   },
   { timestamps: true }
 );

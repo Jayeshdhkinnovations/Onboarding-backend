@@ -63,11 +63,11 @@ async function run() {
     title: "Initial Form",
     description: "Form for Bruno test",
     workspaceId: wsA._id,
-    status: "active",
+    status: "draft",
     fields: [
       {
         label: "First Field",
-        type: "text",
+        type: "short_text",
         required: true
       }
     ]

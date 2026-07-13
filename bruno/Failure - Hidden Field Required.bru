@@ -1,0 +1,44 @@
+meta {
+  name: Failure - Hidden Field Required
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{base_url}}/api/forms
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Hidden Required Field Form",
+    "description": "This request triggers a 400 because a field that is a hide-action logic rule target is also marked required",
+    "fields": [
+      {
+        "fieldId": "source-field",
+        "label": "Source Field",
+        "type": "short_text",
+        "required": false,
+        "logicRules": [
+          {
+            "targetFieldId": "target-field",
+            "operator": "equals",
+            "value": "yes",
+            "action": "hide"
+          }
+        ]
+      },
+      {
+        "fieldId": "target-field",
+        "label": "Target Field",
+        "type": "short_text",
+        "required": true
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 400
+}

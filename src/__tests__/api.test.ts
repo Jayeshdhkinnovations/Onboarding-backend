@@ -491,9 +491,9 @@ describe("Onboarding Platform Integration Tests", () => {
       );
 
       // Create forms with different statuses and titles
-      await Form.create({ title: "Registration Form", workspaceId: workspace._id, status: "active" });
-      await Form.create({ title: "Feedback Survey", workspaceId: workspace._id, status: "active" });
-      await Form.create({ title: "Contact Us", workspaceId: workspace._id, status: "inactive" });
+      await Form.create({ title: "Registration Form", workspaceId: workspace._id, status: "draft" });
+      await Form.create({ title: "Feedback Survey", workspaceId: workspace._id, status: "draft" });
+      await Form.create({ title: "Contact Us", workspaceId: workspace._id, status: "closed" });
 
       // 1. Search Query
       const searchRes = await request(app)
@@ -505,7 +505,7 @@ describe("Onboarding Platform Integration Tests", () => {
 
       // 2. Status Filter Query
       const statusRes = await request(app)
-        .get("/api/forms?status=inactive")
+        .get("/api/forms?status=closed")
         .set("Authorization", `Bearer ${token}`);
       expect(statusRes.status).toBe(200);
       expect(statusRes.body.forms.length).toBe(1);
@@ -709,7 +709,7 @@ describe("Onboarding Platform Integration Tests", () => {
         title: "Admin A's Form",
         description: "Form belonging to Workspace A",
         workspaceId: wsA._id,
-        status: "active",
+        status: "draft",
         fields: [{ label: "Name", type: "short_text", required: true }],
       });
 
@@ -774,10 +774,10 @@ describe("Onboarding Platform Integration Tests", () => {
       const resFields = await request(app)
         .patch(`/api/forms/${formA._id}`)
         .set("Authorization", `Bearer ${tokenA}`)
-        .send({ status: "inactive" });
+        .send({ status: "closed" });
 
       expect(resFields.status).toBe(200);
-      expect(resFields.body.form.status).toBe("inactive");
+      expect(resFields.body.form.status).toBe("closed");
     });
 
     it("Confirm Admin A can DELETE their own form (removes form and its responses)", async () => {

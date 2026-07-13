@@ -5,14 +5,14 @@ meta {
 }
 
 get {
-  url: {{base_url}}/api/forms?search=Registration&status=active&page=1&limit=10
+  url: {{base_url}}/api/forms?search=Registration&status=draft&page=1&limit=10
   body: none
   auth: inherit
 }
 
 params:query {
   search: Registration
-  status: active
+  status: draft
   page: 1
   limit: 10
 }

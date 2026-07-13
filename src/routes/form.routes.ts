@@ -9,6 +9,8 @@ import {
   submitForm,
   getSubmissions,
   duplicateForm,
+  publishForm,
+  closeForm,
 } from "../controllers/form.controller";
 import { protect } from "../middleware/auth.middleware";
 
@@ -21,6 +23,8 @@ router.put("/:formId", protect as any, updateForm);
 router.patch("/:formId", protect as any, patchForm);
 router.delete("/:formId", protect as any, deleteForm);
 router.post("/:formId/duplicate", protect as any, duplicateForm);
+router.post("/:formId/publish", protect as any, publishForm);
+router.post("/:formId/close", protect as any, closeForm);
 
 router.post("/:formId/submissions", submitForm);
 router.get("/:formId/submissions", protect as any, getSubmissions);

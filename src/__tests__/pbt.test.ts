@@ -195,7 +195,7 @@ describe("Form API Property-Based Testing", () => {
   const validFormArb = fc.record({
     title: fc.string({ minLength: 4, maxLength: 30 }).map(s => s.trim().replace(/[^a-zA-Z0-9 ]/g, "T") + "t"),
     description: fc.string({ minLength: 0, maxLength: 100 }).map(s => s.trim().replace(/[^a-zA-Z0-9 ]/g, "D")),
-    status: fc.constantFrom("active", "inactive"),
+    status: fc.constantFrom("draft", "published", "closed"),
     fields: fc.array(validFieldArb, { minLength: 1, maxLength: 5 }),
   });
 

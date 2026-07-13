@@ -2,6 +2,11 @@ import { FormRepository } from "../repositories/form.repository";
 import { IForm, IFormField } from "../models/Form";
 import ResponseModel from "../models/Response";
 import mongoose from "mongoose";
+import { nanoid } from "nanoid";
+import { validateFieldsIntegrity } from "../validations/form.validator";
+
+const CHOICE_FIELD_TYPES = ["dropdown", "multiple_choice"];
+const MAX_SLUG_ATTEMPTS = 5;
 
 export class FormService {
   private formRepository = new FormRepository();
@@ -82,6 +87,7 @@ export class FormService {
         f.deleted = f.deleted ?? false;
         return f;
       });
+      validateFieldsIntegrity(formDetails.fields);
     }
     if (!formDetails.slug) {
       const randomSuffix = Math.random().toString(36).substring(2, 8);
@@ -168,6 +174,7 @@ export class FormService {
     if (updateDetails.fields) {
       const { fields, fieldsChanged } = this.processFieldsUpdate(existing.fields, updateDetails.fields);
       updateDetails.fields = fields;
+      validateFieldsIntegrity(fields);
       if (fieldsChanged) {
         updateDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
       } else {
@@ -194,6 +201,7 @@ export class FormService {
     if (patchDetails.fields) {
       const { fields, fieldsChanged } = this.processFieldsUpdate(existing.fields, patchDetails.fields);
       patchDetails.fields = fields;
+      validateFieldsIntegrity(fields);
       if (fieldsChanged) {
         patchDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
       } else {
@@ -208,6 +216,89 @@ export class FormService {
       throw err;
     }
     return updated;
+  }
+
+  async publishForm(
+    formId: string,
+    workspaceId: string,
+    extraPatch?: Partial<IForm>
+  ): Promise<IForm> {
+    const existing = await this.getFormById(formId, workspaceId);
+
+    let fields = existing.fields;
+    const updateDetails: Partial<IForm> = {};
+
+    if (extraPatch) {
+      if (extraPatch.title !== undefined) updateDetails.title = extraPatch.title;
+      if (extraPatch.description !== undefined) updateDetails.description = extraPatch.description;
+      if (extraPatch.fields) {
+        const { fields: mergedFields, fieldsChanged } = this.processFieldsUpdate(existing.fields, extraPatch.fields);
+        fields = mergedFields;
+        updateDetails.fields = mergedFields;
+        if (fieldsChanged) {
+          updateDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
+        }
+      }
+    }
+
+    validateFieldsIntegrity(fields);
+
+    const visibleFields = fields.filter((f) => !f.deleted);
+
+    if (visibleFields.length === 0) {
+      const err = new Error("Form must have at least one field to be published");
+      (err as any).statusCode = 400;
+      (err as any).code = "FORM_HAS_NO_FIELDS";
+      throw err;
+    }
+
+    for (const field of visibleFields) {
+      if (CHOICE_FIELD_TYPES.includes(field.type) && (!field.options || field.options.length === 0)) {
+        const err = new Error(`Field "${field.label}" must have at least one option to be published`);
+        (err as any).statusCode = 400;
+        (err as any).code = "CHOICE_FIELD_HAS_NO_OPTIONS";
+        throw err;
+      }
+    }
+
+    const publishedSlug = await this.generateUniqueSlug();
+
+    updateDetails.status = "published";
+    updateDetails.publishedAt = new Date();
+    updateDetails.publishedSlug = publishedSlug;
+
+    const updated = await this.formRepository.update(formId, workspaceId, updateDetails);
+    if (!updated) {
+      const err = new Error("Form not found for update");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    return updated;
+  }
+
+  async closeForm(formId: string, workspaceId: string): Promise<IForm> {
+    await this.getFormById(formId, workspaceId);
+
+    const updated = await this.formRepository.update(formId, workspaceId, { status: "closed" });
+    if (!updated) {
+      const err = new Error("Form not found for update");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    return updated;
+  }
+
+  private async generateUniqueSlug(): Promise<string> {
+    for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+      const candidate = nanoid(10);
+      const existing = await this.formRepository.findOne({ publishedSlug: candidate });
+      if (!existing) {
+        return candidate;
+      }
+    }
+    const err = new Error("Could not generate a unique slug, please try again");
+    (err as any).statusCode = 500;
+    throw err;
   }
 
   async deleteForm(formId: string, workspaceId: string): Promise<void> {
@@ -424,11 +515,11 @@ export class FormService {
       title: `Copy of ${originalForm.title}`,
       description: originalForm.description,
       workspaceId: originalForm.workspaceId,
-      status: originalForm.status,
+      status: "draft",
       fields: duplicatedFields,
       schemaVersion: 1,
       slug: freshSlug,
-      // Do NOT carry over a publishedSlug
+      // Do NOT carry over a publishedSlug or publishedAt — a duplicate always starts as a draft
       publishedSlug: undefined,
     };
 

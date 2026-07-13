@@ -1,4 +1,13 @@
 import { z } from "zod";
+import { IFormField } from "../models/Form";
+
+const logicRuleSchema = z.object({
+  ruleId: z.string().trim().optional(),
+  targetFieldId: z.string().trim().min(1, "targetFieldId is required"),
+  operator: z.literal("equals").default("equals"),
+  value: z.string().trim().min(1, "Logic rule value is required"),
+  action: z.enum(["show", "hide"]),
+});
 
 const baseFieldSchema = z.object({
   fieldId: z.string().trim().optional(),
@@ -9,18 +18,19 @@ const baseFieldSchema = z.object({
     .max(100, "Field label cannot exceed 100 characters"),
   required: z.boolean().default(false),
   deleted: z.boolean().default(false),
+  logicRules: z.array(logicRuleSchema).optional(),
 });
 
 const shortTextObj = baseFieldSchema.extend({
   type: z.literal("short_text"),
   minLength: z.number().nonnegative("minLength must be non-negative").optional(),
-  maxLength: z.number().nonnegative("maxLength must be non-negative").optional(),
+  maxLength: z.number().int().positive("maxLength must be a positive integer").optional(),
 });
 
 const longTextObj = baseFieldSchema.extend({
   type: z.literal("long_text"),
   minLength: z.number().nonnegative("minLength must be non-negative").optional(),
-  maxLength: z.number().nonnegative("maxLength must be non-negative").optional(),
+  maxLength: z.number().int().positive("maxLength must be a positive integer").optional(),
 });
 
 const emailObj = baseFieldSchema.extend({
@@ -40,8 +50,8 @@ const numberObj = baseFieldSchema.extend({
 
 const dateObj = baseFieldSchema.extend({
   type: z.literal("date"),
-  minDate: z.string().optional(),
-  maxDate: z.string().optional(),
+  minDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "minDate must be in YYYY-MM-DD format").optional(),
+  maxDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "maxDate must be in YYYY-MM-DD format").optional(),
 });
 
 const dropdownObj = baseFieldSchema.extend({
@@ -93,10 +103,10 @@ export const fieldSchema = z
       }
     }
     if (data.type === "number") {
-      if (data.min !== undefined && data.max !== undefined && data.min > data.max) {
+      if (data.min !== undefined && data.max !== undefined && data.min >= data.max) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "min cannot be greater than max",
+          message: "min must be less than max",
           path: ["min"],
         });
       }
@@ -145,6 +155,24 @@ export const fieldSchema = z
     }
   });
 
+const brandingSchema = z.object({
+  primaryColor: z
+    .string()
+    .trim()
+    .regex(/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/, "primaryColor must be a valid hex color")
+    .optional(),
+  logoUrl: z.string().trim().optional(),
+  coverImageUrl: z.string().trim().optional(),
+});
+
+const settingsSchema = z.object({
+  successMessage: z.string().trim().max(500, "successMessage cannot exceed 500 characters").optional(),
+  responseLimitEnabled: z.boolean().optional(),
+  responseLimit: z.number().int().positive("responseLimit must be a positive integer").optional(),
+  closeDate: z.string().trim().optional(),
+  honeypotEnabled: z.boolean().optional(),
+});
+
 export const createFormSchema = z.object({
   title: z
     .string()
@@ -152,10 +180,12 @@ export const createFormSchema = z.object({
     .min(3, "Form title must be at least 3 characters")
     .max(100, "Form title cannot exceed 100 characters"),
   description: z.string().trim().max(500, "Description cannot exceed 500 characters").optional(),
-  status: z.enum(["active", "inactive"]).default("active"),
+  status: z.enum(["draft", "published", "closed"]).default("draft"),
   fields: z.array(fieldSchema).default([]),
   slug: z.string().trim().optional(),
   publishedSlug: z.string().trim().optional(),
+  branding: brandingSchema.optional(),
+  settings: settingsSchema.optional(),
 });
 
 export const patchFormSchema = z.object({
@@ -165,10 +195,58 @@ export const patchFormSchema = z.object({
     .max(100, "Form title cannot exceed 100 characters")
     .optional(),
   description: z.string().trim().max(500, "Description cannot exceed 500 characters").optional(),
-  status: z.enum(["active", "inactive"]).optional(),
+  status: z.enum(["draft", "published", "closed"]).optional(),
   fields: z.array(fieldSchema).optional(),
   slug: z.string().trim().optional(),
   publishedSlug: z.string().trim().optional(),
+  branding: brandingSchema.optional(),
+  settings: settingsSchema.optional(),
 });
 
+function fieldValidationError(message: string, code: string): Error {
+  const err = new Error(message);
+  (err as any).statusCode = 400;
+  (err as any).code = code;
+  return err;
+}
 
+/**
+ * Cross-field logic-rule integrity checks that need visibility of the full,
+ * merged field list (not just whatever subset was in a given request body).
+ */
+export function validateFieldsIntegrity(fields: IFormField[]): void {
+  const allFieldIds = new Set(fields.map((f) => f.fieldId).filter(Boolean));
+  const hideTargets = new Set<string>();
+
+  for (const field of fields) {
+    if (field.deleted || !field.logicRules?.length) continue;
+
+    for (const rule of field.logicRules) {
+      if (!rule.targetFieldId || !allFieldIds.has(rule.targetFieldId)) {
+        throw fieldValidationError(
+          `Logic rule on field "${field.label}" references a field that does not exist on this form`,
+          "LOGIC_RULE_INVALID_TARGET"
+        );
+      }
+      if (rule.targetFieldId === field.fieldId) {
+        throw fieldValidationError(
+          `Logic rule on field "${field.label}" cannot target itself`,
+          "LOGIC_RULE_SELF_REFERENCE"
+        );
+      }
+      if (rule.action === "hide") {
+        hideTargets.add(rule.targetFieldId);
+      }
+    }
+  }
+
+  for (const field of fields) {
+    if (field.deleted) continue;
+    if (field.fieldId && hideTargets.has(field.fieldId) && field.required) {
+      throw fieldValidationError(
+        `Field "${field.label}" is conditionally hidden by a logic rule and cannot be required`,
+        "HIDDEN_FIELD_CANNOT_BE_REQUIRED"
+      );
+    }
+  }
+}

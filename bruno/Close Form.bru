@@ -1,11 +1,11 @@
 meta {
-  name: Delete Form
+  name: Close Form
   type: http
-  seq: 15
+  seq: 7
 }
 
-delete {
-  url: {{base_url}}/api/forms/:formId
+post {
+  url: {{base_url}}/api/forms/:formId/close
   body: none
   auth: inherit
 }
