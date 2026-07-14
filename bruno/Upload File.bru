@@ -1,0 +1,23 @@
+meta {
+  name: Upload File
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{base_url}}/api/upload
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  file: @file(logo.png)
+  type: branding
+}
+
+assert {
+  res.status: eq 201
+  res.body.success: eq true
+  res.body.url: isString
+  res.body.metadata: isJson
+}

@@ -9,6 +9,7 @@ import userRoutes from "./routes/user.routes";
 import workspaceRoutes from "./routes/workspace.routes";
 import formRoutes from "./routes/form.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
+import uploadRoutes from "./routes/upload.routes";
 import { errorHandler } from "./middleware/error.middleware";
 
 // Continuous Deployment Test Comment
@@ -30,6 +31,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/forms", formRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/upload", uploadRoutes);
 app.use("/api", healthRoutes);
 
 app.use(errorHandler as any);

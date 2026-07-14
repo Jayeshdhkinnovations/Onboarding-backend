@@ -9,6 +9,12 @@ const config: Config = {
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
+  transform: {
+    '^.+\\.[tj]sx?$': 'ts-jest',
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(jose)/)',
+  ],
 };
 
 export default config;

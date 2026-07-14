@@ -1,0 +1,15 @@
+meta {
+  name: Get Uploaded File
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{base_url}}/api/upload/file/{{uploaded_filename}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
