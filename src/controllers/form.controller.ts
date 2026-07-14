@@ -427,10 +427,7 @@ export const deleteForm = async (req: Request, res: Response, next: NextFunction
 
     await formService.deleteForm(formId as string, workspaceId);
 
-    res.status(200).json({
-      success: true,
-      message: "Form and all its submissions deleted successfully",
-    });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

@@ -791,8 +791,7 @@ describe("Onboarding Platform Integration Tests", () => {
         .delete(`/api/forms/${formA._id}`)
         .set("Authorization", `Bearer ${tokenA}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      expect(res.status).toBe(204);
 
       // Confirm both form and its responses are deleted
       expect(await Form.findById(formA._id)).toBeNull();

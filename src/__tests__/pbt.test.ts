@@ -41,6 +41,10 @@ import app from "../app";
 import User from "../models/User";
 import Workspace from "../models/Workspace";
 import Form from "../models/Form";
+import ResponseModel from "../models/Response";
+import Upload from "../models/Upload";
+import fs from "fs";
+import path from "path";
 import jwt from "jsonwebtoken";
 import fc from "fast-check";
 
@@ -193,7 +197,7 @@ describe("Form API Property-Based Testing", () => {
   );
 
   const validFormArb = fc.record({
-    title: fc.string({ minLength: 4, maxLength: 30 }).map(s => s.trim().replace(/[^a-zA-Z0-9 ]/g, "T") + "t"),
+    title: fc.string({ minLength: 4, maxLength: 30 }).map(s => s.trim().replace(/[^a-zA-Z0-9 ]/g, "T") + "test"),
     description: fc.string({ minLength: 0, maxLength: 100 }).map(s => s.trim().replace(/[^a-zA-Z0-9 ]/g, "D")),
     status: fc.constantFrom("draft", "published", "closed"),
     fields: fc.array(validFieldArb, { minLength: 1, maxLength: 5 }),
@@ -351,5 +355,229 @@ describe("Form API Property-Based Testing", () => {
 
     // Cleanup
     await Form.findByIdAndDelete(formId);
+  });
+
+  // 4. Publish / Close Invariant Property Test
+  it("Property: publish and close lifecycle invariant", async () => {
+    await fc.assert(
+      fc.asyncProperty(validFormArb, async (formInput) => {
+        // Create Form (starts as draft)
+        const createRes = await request(app)
+          .post("/api/forms")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send(formInput);
+        expect(createRes.status).toBe(201);
+        const formId = createRes.body.form._id;
+
+        // Publish Form
+        const publishRes = await request(app)
+          .post(`/api/forms/${formId}/publish`)
+          .set("Authorization", `Bearer ${tokenA}`);
+        expect(publishRes.status).toBe(200);
+        expect(publishRes.body.success).toBe(true);
+        expect(publishRes.body.status).toBe("published");
+        expect(publishRes.body.slug).toBeDefined();
+
+        // Close Form
+        const closeRes = await request(app)
+          .post(`/api/forms/${formId}/close`)
+          .set("Authorization", `Bearer ${tokenA}`);
+        expect(closeRes.status).toBe(200);
+        expect(closeRes.body.success).toBe(true);
+        expect(closeRes.body.status).toBe("closed");
+
+        // Cleanup
+        await Form.findByIdAndDelete(formId);
+      }),
+      { numRuns: 10 }
+    );
+  });
+
+  // 5. Duplicate Invariant Property Test
+  it("Property: duplicate form copy invariant", async () => {
+    await fc.assert(
+      fc.asyncProperty(validFormArb, async (formInput) => {
+        // Create Form
+        const createRes = await request(app)
+          .post("/api/forms")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send(formInput);
+        expect(createRes.status).toBe(201);
+        const formId = createRes.body.form._id;
+
+        // Duplicate Form
+        const duplicateRes = await request(app)
+          .post(`/api/forms/${formId}/duplicate`)
+          .set("Authorization", `Bearer ${tokenA}`);
+        expect(duplicateRes.status).toBe(201);
+        expect(duplicateRes.body.success).toBe(true);
+        
+        const dupForm = duplicateRes.body.form;
+        expect(dupForm).toBeDefined();
+        expect(dupForm._id).not.toBe(formId);
+        expect(dupForm.title).toBe(`Copy of ${formInput.title}`);
+        expect(dupForm.fields.length).toBe(formInput.fields.length);
+        expect(dupForm.status).toBe("draft");
+        expect(dupForm.publishedSlug).toBeUndefined();
+
+        // Cleanup
+        await Form.findByIdAndDelete(formId);
+        await Form.findByIdAndDelete(dupForm._id);
+      }),
+      { numRuns: 10 }
+    );
+  });
+
+  // 6. Delete Cascade Completeness Property Test
+  it("Property: delete-cascade completeness and disk sweep", async () => {
+    // Setup UPLOAD_DIR env for testing to avoid polluting actual uploads
+    const testPbtUploadDir = path.join(process.cwd(), "test_pbt_uploads");
+    process.env.UPLOAD_DIR = testPbtUploadDir;
+    if (!fs.existsSync(testPbtUploadDir)) {
+      fs.mkdirSync(testPbtUploadDir, { recursive: true });
+    }
+
+    await fc.assert(
+      fc.asyncProperty(validFormArb, async (formInput) => {
+        // Ensure all fields have unique labels to avoid key collisions in answers
+        const seenLabels = new Set<string>();
+        seenLabels.add("PBT Resume");
+        const uniqueFields: any[] = [];
+        for (const field of formInput.fields) {
+          let label = field.label;
+          let counter = 1;
+          while (seenLabels.has(label)) {
+            label = `${field.label}_${counter++}`;
+          }
+          seenLabels.add(label);
+          uniqueFields.push({
+            ...field,
+            label,
+          });
+        }
+
+        const formPayload = {
+          ...formInput,
+          fields: [
+            ...uniqueFields,
+            {
+              label: "PBT Resume",
+              type: "file_upload",
+              required: false,
+            },
+          ],
+        };
+
+        const createRes = await request(app)
+          .post("/api/forms")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send(formPayload);
+        expect(createRes.status).toBe(201);
+        const formId = createRes.body.form._id;
+
+        // Create a fake physical file on disk and its metadata Upload record in DB
+        const fakeFilename = `pbt-test-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
+        const fakeFilePath = path.join(testPbtUploadDir, fakeFilename);
+        fs.writeFileSync(fakeFilePath, "fake content");
+
+        const uploadRecord = await Upload.create({
+          name: "resume.png",
+          size: 12,
+          type: "image/png",
+          path: fakeFilename,
+          owner: adminA._id,
+        });
+
+        // Submit a response pre-populated with the uploaded file
+        const answers: Record<string, any> = {
+          "PBT Resume": {
+            fileName: fakeFilename,
+            fileSize: 12,
+            mimeType: "image/png",
+          },
+        };
+        // Fill other required fields with dummy values
+        for (const field of formPayload.fields) {
+          if (field.label !== "PBT Resume") {
+            let val: any = "dummy";
+            if (field.type === "short_text" || field.type === "long_text") {
+              const minL = field.minLength !== undefined ? field.minLength : 0;
+              const maxL = field.maxLength !== undefined ? field.maxLength : 50;
+              const targetLen = Math.max(minL, Math.min(maxL, 5));
+              val = "dummy".repeat(Math.ceil(targetLen / 5)).substring(0, targetLen);
+            } else if (field.type === "number") {
+              const minVal = field.min !== undefined ? field.min : -10;
+              const maxVal = field.max !== undefined ? field.max : 10;
+              val = Math.round((minVal + maxVal) / 2);
+            } else if (field.type === "dropdown" || field.type === "multiple_choice") {
+              val = field.options && field.options.length > 0 ? field.options[0] : "option";
+            } else if (field.type === "checkbox") {
+              val = field.options && field.options.length > 0 ? [field.options[0]] : true;
+            } else if (field.type === "date") {
+              val = "2026-06-01";
+            } else if (field.type === "email") {
+              val = "test@example.com";
+            } else if (field.type === "phone") {
+              val = "+1234567890";
+            } else if (field.type === "file_upload") {
+              const mime = field.allowedMimeTypes && field.allowedMimeTypes.length > 0
+                ? field.allowedMimeTypes[0]
+                : "image/png";
+              val = {
+                fileName: fakeFilename,
+                fileSize: 12,
+                mimeType: mime,
+              };
+            }
+            // Avoid overwriting a valid file upload answer with a dummy one if labels collide
+            if (!answers[field.label] || answers[field.label].fileName === undefined) {
+              answers[field.label] = val;
+            }
+          }
+        }
+
+        const submitRes = await request(app)
+          .post(`/api/forms/${formId}/submissions`)
+          .send({ answers });
+        if (submitRes.status !== 201) {
+          console.log("SUBMIT STATUS:", submitRes.status);
+          console.log("SUBMIT BODY:", JSON.stringify(submitRes.body, null, 2));
+          console.log("ANSWERS:", JSON.stringify(answers, null, 2));
+          console.log("FIELDS:", JSON.stringify(formPayload.fields, null, 2));
+        }
+        expect(submitRes.status).toBe(201);
+
+        // Verify response is in DB
+        const initialResponses = await ResponseModel.find({ formId });
+        expect(initialResponses.length).toBe(1);
+
+        // Delete the form (204 No Content)
+        const deleteRes = await request(app)
+          .delete(`/api/forms/${formId}`)
+          .set("Authorization", `Bearer ${tokenA}`);
+        expect(deleteRes.status).toBe(204);
+
+        // Verify form is deleted
+        const dbForm = await Form.findById(formId);
+        expect(dbForm).toBeNull();
+
+        // Verify responses are deleted (cascade)
+        const dbResponses = await ResponseModel.find({ formId });
+        expect(dbResponses.length).toBe(0);
+
+        // Verify Upload metadata record is deleted (cascade)
+        const dbUpload = await Upload.findById(uploadRecord._id);
+        expect(dbUpload).toBeNull();
+
+        // Verify physical file is swept from disk (cascade)
+        expect(fs.existsSync(fakeFilePath)).toBe(false);
+      }),
+      { numRuns: 5 } // Small number of runs due to I/O operations
+    );
+
+    // Clean up directory
+    if (fs.existsSync(testPbtUploadDir)) {
+      fs.rmSync(testPbtUploadDir, { recursive: true, force: true });
+    }
   });
 });
