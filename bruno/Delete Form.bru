@@ -1,19 +1,15 @@
 meta {
   name: Delete Form
   type: http
-  seq: 15
+  seq: 14
 }
 
 delete {
-  url: {{base_url}}/api/forms/:formId
+  url: {{base_url}}/api/forms/{{form_id}}
   body: none
   auth: inherit
 }
 
-params:path {
-  formId: {{formId}}
-}
-
 assert {
-  res.status: eq 200
+  res.status: eq 204
 }
