@@ -1,13 +1,30 @@
 import { z } from "zod";
 import { IFormField } from "../models/Form";
 
-const logicRuleSchema = z.object({
-  ruleId: z.string().trim().optional(),
-  targetFieldId: z.string().trim().min(1, "targetFieldId is required"),
+const conditionSchema = z.object({
+  fieldId: z.string().trim().min(1, "fieldId is required"),
   operator: z.literal("equals").default("equals"),
   value: z.string().trim().min(1, "Logic rule value is required"),
-  action: z.enum(["show", "hide"]),
 });
+
+const logicRuleSchema = z
+  .object({
+    ruleId: z.string().trim().optional(),
+    targetFieldId: z.string().trim().min(1, "targetFieldId is required"),
+    action: z.enum(["show", "hide"]),
+    condition: conditionSchema.optional(),
+    operator: z.literal("equals").optional(),
+    value: z.string().trim().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.condition && !data.value) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Either condition object or flat value must be provided",
+        path: ["value"],
+      });
+    }
+  });
 
 const baseFieldSchema = z.object({
   fieldId: z.string().trim().optional(),

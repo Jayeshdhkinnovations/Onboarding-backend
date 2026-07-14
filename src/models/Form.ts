@@ -1,11 +1,20 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export interface ICondition {
+  fieldId: string;
+  operator: "equals";
+  value: string;
+}
+
 export interface ILogicRule {
   ruleId?: string;
   targetFieldId: string;
-  operator: "equals";
-  value: string;
   action: "show" | "hide";
+  
+  // Support both shapes
+  condition?: ICondition;
+  operator?: "equals";
+  value?: string;
 }
 
 export interface IFormField {
@@ -69,12 +78,22 @@ export interface IForm extends Document {
   updatedAt: Date;
 }
 
+const ConditionSchema = new Schema<ICondition>(
+  {
+    fieldId: { type: String, required: true },
+    operator: { type: String, enum: ["equals"], default: "equals" },
+    value: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const LogicRuleSchema = new Schema<ILogicRule>(
   {
     ruleId: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
     targetFieldId: { type: String, required: true },
+    condition: { type: ConditionSchema, required: false },
     operator: { type: String, enum: ["equals"], default: "equals" },
-    value: { type: String, required: true },
+    value: { type: String, required: false },
     action: { type: String, enum: ["show", "hide"], required: true },
   },
   { _id: false }
