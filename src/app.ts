@@ -20,6 +20,7 @@ app.use(helmet());
 app.use(express.json());
 app.use(morgan("dev"));
 
+// Test comment to trigger CD self-hosted deployment verification
 app.get("/", (req, res) => {
     res.json({
         message: "Backend Running Successfully"
