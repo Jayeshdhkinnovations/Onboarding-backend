@@ -1,0 +1,17 @@
+meta {
+  name: Use Template
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{base_url}}/api/templates/{{template_id}}/use
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 201
+  res.body.success: eq true
+  res.body.data: isJson
+}

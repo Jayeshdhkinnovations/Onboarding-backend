@@ -80,7 +80,7 @@ const LogicRuleSchema = new Schema<ILogicRule>(
   { _id: false }
 );
 
-const FormFieldSchema = new Schema<IFormField>({
+export const FormFieldSchema = new Schema<IFormField>({
   fieldId: { type: String, required: true, default: () => new mongoose.Types.ObjectId().toString() },
   label: { type: String, required: true, trim: true },
   type: {
