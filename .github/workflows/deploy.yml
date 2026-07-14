@@ -7,34 +7,14 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build Code
-        run: npm run build
-
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          script: |
-            cd /root/Onboarding-backend
-            git pull origin main
-            npm install --omit=dev
-            npm run build
-            pm2 restart onboarding-backend || pm2 start dist/server.js --name "onboarding-backend"
+      - name: Pull latest code and Deploy
+        run: |
+          cd /root/Onboarding-backend
+          git checkout main
+          git pull origin main
+          npm install
+          npm run build
+          pm2 restart onboarding-backend || pm2 start dist/server.js --name "onboarding-backend"
