@@ -7,6 +7,7 @@ export interface IUpload extends Document {
   path: string;
   owner: mongoose.Types.ObjectId;
   uploadTime: Date;
+  isBranding: boolean;
 }
 
 const UploadSchema = new Schema<IUpload>(
@@ -37,6 +38,11 @@ const UploadSchema = new Schema<IUpload>(
     uploadTime: {
       type: Date,
       default: Date.now,
+      required: true,
+    },
+    isBranding: {
+      type: Boolean,
+      default: false,
       required: true,
     },
   },

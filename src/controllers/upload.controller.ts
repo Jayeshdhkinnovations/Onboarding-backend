@@ -1,8 +1,10 @@
 import { Response } from "express";
 import fs from "fs";
 import path from "path";
+import jwt from "jsonwebtoken";
 import { AuthenticatedRequest } from "../middleware/auth.middleware";
 import Upload from "../models/Upload";
+import User from "../models/User";
 import { UploadResponse } from "../types/upload";
 
 // ponytail: This implementation utilizes local disk storage for keeping uploaded assets.
@@ -61,6 +63,7 @@ export const uploadFile = async (
       path: file.filename, // Serve via API, don't store raw disk path
       owner: req.user._id,
       uploadTime: new Date(),
+      isBranding,
     });
 
     const fileUrl = `${req.protocol}://${req.get("host")}/api/upload/file/${file.filename}`;
@@ -77,6 +80,7 @@ export const uploadFile = async (
         path: uploadDoc.path,
         owner: uploadDoc.owner.toString(),
         uploadTime: uploadDoc.uploadTime.toISOString(),
+        isBranding: uploadDoc.isBranding,
       },
     };
 
@@ -149,6 +153,64 @@ export const getFile = async (
         message: "File not found",
       });
       return;
+    }
+
+    const uploadDoc = await Upload.findOne({ path: safeFilename });
+
+    // If it's a private file (not branding), check authentication
+    if (!uploadDoc || !uploadDoc.isBranding) {
+      let token: string | undefined;
+
+      // 1. Check Authorization Header
+      if (
+        req.headers.authorization &&
+        req.headers.authorization.startsWith("Bearer")
+      ) {
+        token = req.headers.authorization.split(" ")[1];
+      }
+
+      // 2. Check Cookies
+      if (!token && req.headers.cookie) {
+        const cookies = req.headers.cookie.split(";").reduce((acc, c) => {
+          const [name, ...val] = c.trim().split("=");
+          acc[name] = val.join("=");
+          return acc;
+        }, {} as Record<string, string>);
+        token = cookies.token || cookies.jwt || cookies.access_token;
+      }
+
+      if (!token) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized access to private files",
+          error: { message: "Unauthorized access to private files" },
+        });
+        return;
+      }
+
+      try {
+        const decoded = jwt.verify(
+          token,
+          process.env.JWT_SECRET as string
+        ) as { id: string; email: string; role: string };
+
+        const user = await User.findById(decoded.id);
+        if (!user) {
+          res.status(401).json({
+            success: false,
+            message: "Unauthorized: Invalid user session",
+            error: { message: "Unauthorized: Invalid user session" },
+          });
+          return;
+        }
+      } catch (err) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized: Invalid or expired token",
+          error: { message: "Unauthorized: Invalid or expired token" },
+        });
+        return;
+      }
     }
 
     // Serve/stream the stored file for preview/download

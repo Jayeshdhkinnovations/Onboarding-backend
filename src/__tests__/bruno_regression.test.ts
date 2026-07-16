@@ -218,7 +218,7 @@ describe("Bruno Regression Route Pass & Forms Lifecycle Tests", () => {
     const res = await request(app)
       .post("/api/upload")
       .set("Authorization", `Bearer ${tokenA}`)
-      .attach("file", Buffer.from("fake-png-headers-and-data"), "test_logo.png");
+      .attach("logo", Buffer.from("fake-png-headers-and-data"), "test_logo.png");
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
@@ -251,7 +251,7 @@ describe("Bruno Regression Route Pass & Forms Lifecycle Tests", () => {
     const uploadRes = await request(app)
       .post("/api/upload")
       .set("Authorization", `Bearer ${tokenA}`)
-      .attach("file", Buffer.from("fake-image-bytes"), "image.jpg");
+      .attach("logo", Buffer.from("fake-image-bytes"), "image.jpg");
     
     const uniqueFilename = path.basename(uploadRes.body.url);
 

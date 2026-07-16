@@ -10,5 +10,6 @@ export interface UploadResponse {
     path: string;
     owner: string;
     uploadTime: string;
+    isBranding: boolean;
   };
 }

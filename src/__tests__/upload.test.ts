@@ -158,4 +158,46 @@ describe("Upload API Integration Tests", () => {
     expect(res.body.success).toBe(false);
     expect(res.body.message).toContain("Invalid file path");
   });
+
+  it("should allow public access to branding files without token", async () => {
+    const imageBuffer = Buffer.from("fake-logo-data");
+    const uploadRes = await request(app)
+      .post("/api/upload")
+      .set("Authorization", `Bearer ${authToken}`)
+      .attach("logo", imageBuffer, "test_logo.png");
+    
+    expect(uploadRes.status).toBe(201);
+    expect(uploadRes.body.metadata.isBranding).toBe(true);
+
+    const getRes = await request(app)
+      .get(`/api/upload/file/${uploadRes.body.metadata.path}`);
+    
+    expect(getRes.status).toBe(200);
+    expect(getRes.body).toBeDefined();
+  });
+
+  it("should reject access to private/non-branding files without a valid token (401)", async () => {
+    const pdfBuffer = Buffer.from("fake-pdf-resume-data");
+    const uploadRes = await request(app)
+      .post("/api/upload")
+      .set("Authorization", `Bearer ${authToken}`)
+      .attach("file", pdfBuffer, "resume.pdf");
+
+    expect(uploadRes.status).toBe(201);
+    expect(uploadRes.body.metadata.isBranding).toBe(false);
+
+    const getResNoAuth = await request(app)
+      .get(`/api/upload/file/${uploadRes.body.metadata.path}`);
+    
+    expect(getResNoAuth.status).toBe(401);
+    expect(getResNoAuth.body.success).toBe(false);
+    expect(getResNoAuth.body.message).toContain("Unauthorized access to private files");
+
+    const getResWithAuth = await request(app)
+      .get(`/api/upload/file/${uploadRes.body.metadata.path}`)
+      .set("Authorization", `Bearer ${authToken}`);
+    
+    expect(getResWithAuth.status).toBe(200);
+    expect(getResWithAuth.body.toString()).toBe("fake-pdf-resume-data");
+  });
 });
