@@ -36,7 +36,8 @@ export const uploadFile = async (
       file.fieldname === "cover" ||
       req.body.type === "branding" ||
       req.body.uploadType === "branding" ||
-      req.query.type === "branding";
+      req.query.type === "branding" ||
+      file.mimetype.startsWith("image/");
 
     if (isBranding && !file.mimetype.startsWith("image/")) {
       res.status(400).json({
