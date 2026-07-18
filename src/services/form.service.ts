@@ -83,15 +83,31 @@ export class FormService {
   }
 
   async createForm(workspaceId: string, formDetails: Partial<IForm>): Promise<IForm> {
+    // Seed default page if none provided
+    if (!formDetails.pages || formDetails.pages.length === 0) {
+      formDetails.pages = [
+        {
+          id: new mongoose.Types.ObjectId().toString(),
+          order: 0,
+          title: formDetails.title || "Form",
+          description: formDetails.description || "",
+        },
+      ];
+    }
+
     if (formDetails.fields) {
+      const defaultPageId = formDetails.pages[0].id;
       formDetails.fields = formDetails.fields.map((f: any) => {
         if (!f.fieldId) {
           f.fieldId = new mongoose.Types.ObjectId().toString();
         }
+        if (!f.pageId) {
+          f.pageId = defaultPageId;
+        }
         f.deleted = f.deleted ?? false;
         return f;
       });
-      validateFieldsIntegrity(formDetails.fields);
+      validateFieldsIntegrity(formDetails.fields, formDetails.pages);
     }
     if (!formDetails.slug) {
       const randomSuffix = Math.random().toString(36).substring(2, 8);
@@ -173,12 +189,19 @@ export class FormService {
     workspaceId: string,
     updateDetails: Partial<IForm>
   ): Promise<IForm> {
+    if (updateDetails.pages && updateDetails.pages.length === 0) {
+      const err = new Error("Pages array must not be empty");
+      (err as any).statusCode = 400;
+      throw err;
+    }
+
     const existing = await this.getFormById(formId, workspaceId);
+    const pages = updateDetails.pages || existing.pages || [];
 
     if (updateDetails.fields) {
       const { fields, fieldsChanged } = this.processFieldsUpdate(existing.fields, updateDetails.fields);
       updateDetails.fields = fields;
-      validateFieldsIntegrity(fields);
+      validateFieldsIntegrity(fields, pages);
       if (fieldsChanged) {
         updateDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
       } else {
@@ -200,12 +223,19 @@ export class FormService {
     workspaceId: string,
     patchDetails: Partial<IForm>
   ): Promise<IForm> {
+    if (patchDetails.pages && patchDetails.pages.length === 0) {
+      const err = new Error("Pages array must not be empty");
+      (err as any).statusCode = 400;
+      throw err;
+    }
+
     const existing = await this.getFormById(formId, workspaceId);
+    const pages = patchDetails.pages || existing.pages || [];
 
     if (patchDetails.fields) {
       const { fields, fieldsChanged } = this.processFieldsUpdate(existing.fields, patchDetails.fields);
       patchDetails.fields = fields;
-      validateFieldsIntegrity(fields);
+      validateFieldsIntegrity(fields, pages);
       if (fieldsChanged) {
         patchDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
       } else {
@@ -227,7 +257,14 @@ export class FormService {
     workspaceId: string,
     extraPatch?: Partial<IForm>
   ): Promise<IForm> {
+    if (extraPatch && extraPatch.pages && extraPatch.pages.length === 0) {
+      const err = new Error("Pages array must not be empty");
+      (err as any).statusCode = 400;
+      throw err;
+    }
+
     const existing = await this.getFormById(formId, workspaceId);
+    const pages = (extraPatch && extraPatch.pages) || existing.pages || [];
 
     let fields = existing.fields;
     const updateDetails: Partial<IForm> = {};
@@ -243,9 +280,12 @@ export class FormService {
           updateDetails.schemaVersion = (existing.schemaVersion || 1) + 1;
         }
       }
+      if (extraPatch.pages) {
+        updateDetails.pages = extraPatch.pages;
+      }
     }
 
-    validateFieldsIntegrity(fields);
+    validateFieldsIntegrity(fields, pages);
 
     const visibleFields = fields.filter((f) => !f.deleted);
 

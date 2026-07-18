@@ -91,6 +91,11 @@ describe("Bruno Regression Route Pass & Forms Lifecycle Tests", () => {
         fields: [{ label: "Email", type: "email", required: true }],
       });
     expect(createRes.status).toBe(201);
+    expect(createRes.body.form.pages).toBeDefined();
+    expect(createRes.body.form.pages.length).toBe(1);
+    expect(createRes.body.form.pages[0].title).toBe("Publish Test Form");
+    expect(createRes.body.form.fields[0].pageId).toBe(createRes.body.form.pages[0].id);
+
     const formId = createRes.body.form._id;
 
     const publishRes = await request(app)
@@ -355,5 +360,71 @@ describe("Bruno Regression Route Pass & Forms Lifecycle Tests", () => {
     expect(createRes.status).toBe(400);
     expect(createRes.body.success).toBe(false);
     expect(createRes.body.error.message).toContain("cannot target itself");
+  });
+
+  // 12. Test layout settings update
+  it("should accept valid layout settings (single_column, two_column, compact)", async () => {
+    const createRes = await request(app)
+      .post("/api/forms")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        title: "Layout Test Form",
+        fields: [{ label: "Email", type: "email" }],
+      });
+    expect(createRes.status).toBe(201);
+    const formId = createRes.body.form._id;
+
+    // PATCH with compact layout
+    const patchRes = await request(app)
+      .patch(`/api/forms/${formId}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        settings: {
+          layout: "compact",
+        },
+      });
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.form.settings.layout).toBe("compact");
+  });
+
+  // 13. Test multi-page validation errors
+  it("should reject pageId referencing non-existent page", async () => {
+    const createRes = await request(app)
+      .post("/api/forms")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        title: "Page Reference Test Form",
+        pages: [{ id: "page-1", order: 0, title: "Page 1" }],
+        fields: [
+          {
+            label: "Email",
+            type: "email",
+            pageId: "page-2", // Non-existent page
+          },
+        ],
+      });
+    expect(createRes.status).toBe(400);
+    expect(createRes.body.success).toBe(false);
+  });
+
+  it("should reject patching a form with empty pages list", async () => {
+    const createRes = await request(app)
+      .post("/api/forms")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        title: "Empty Pages Test Form",
+        fields: [{ label: "Email", type: "email" }],
+      });
+    expect(createRes.status).toBe(201);
+    const formId = createRes.body.form._id;
+
+    const patchRes = await request(app)
+      .patch(`/api/forms/${formId}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        pages: [], // Empty pages array
+      });
+    expect(patchRes.status).toBe(400);
+    expect(patchRes.body.success).toBe(false);
   });
 });

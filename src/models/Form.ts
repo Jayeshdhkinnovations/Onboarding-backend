@@ -17,8 +17,16 @@ export interface ILogicRule {
   value?: string;
 }
 
+export interface IFormPage {
+  id: string;
+  order: number;
+  title?: string;
+  description?: string;
+}
+
 export interface IFormField {
   fieldId?: string;
+  pageId?: string;
   label: string;
   type:
     | "short_text"
@@ -60,6 +68,7 @@ export interface IFormSettings {
   responseLimit?: number;
   closeDate?: string;
   honeypotEnabled?: boolean;
+  layout?: "single_column" | "two_column" | "compact";
 }
 
 export interface IForm extends Document {
@@ -68,6 +77,7 @@ export interface IForm extends Document {
   workspaceId: mongoose.Types.ObjectId;
   status: "draft" | "published" | "closed";
   fields: IFormField[];
+  pages: IFormPage[];
   schemaVersion: number;
   slug?: string;
   publishedSlug?: string;
@@ -101,6 +111,7 @@ const LogicRuleSchema = new Schema<ILogicRule>(
 
 export const FormFieldSchema = new Schema<IFormField>({
   fieldId: { type: String, required: true, default: () => new mongoose.Types.ObjectId().toString() },
+  pageId: { type: String, required: false },
   label: { type: String, required: true, trim: true },
   type: {
     type: String,
@@ -135,6 +146,16 @@ export const FormFieldSchema = new Schema<IFormField>({
   logicRules: { type: [LogicRuleSchema], default: [] },
 });
 
+const FormPageSchema = new Schema<IFormPage>(
+  {
+    id: { type: String, required: true },
+    order: { type: Number, required: true },
+    title: { type: String, default: "" },
+    description: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const BrandingSchema = new Schema<IBranding>(
   {
     primaryColor: { type: String },
@@ -151,6 +172,11 @@ const FormSettingsSchema = new Schema<IFormSettings>(
     responseLimit: { type: Number },
     closeDate: { type: String },
     honeypotEnabled: { type: Boolean, default: false },
+    layout: {
+      type: String,
+      enum: ["single_column", "two_column", "compact"],
+      default: "single_column",
+    },
   },
   { _id: false }
 );
@@ -172,6 +198,7 @@ const FormSchema = new Schema<IForm>(
       index: true,
     },
     fields: { type: [FormFieldSchema], default: [] },
+    pages: { type: [FormPageSchema], default: [] },
     schemaVersion: {
       type: Number,
       default: 1,

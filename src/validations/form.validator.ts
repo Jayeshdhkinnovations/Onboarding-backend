@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IFormField } from "../models/Form";
+import { IFormField, IFormPage } from "../models/Form";
 
 const conditionSchema = z.object({
   fieldId: z.string().trim().min(1, "fieldId is required"),
@@ -28,6 +28,7 @@ const logicRuleSchema = z
 
 const baseFieldSchema = z.object({
   fieldId: z.string().trim().optional(),
+  pageId: z.string().trim().optional(),
   label: z
     .string()
     .trim()
@@ -188,37 +189,77 @@ const settingsSchema = z.object({
   responseLimit: z.number().int().positive("responseLimit must be a positive integer").optional(),
   closeDate: z.string().trim().optional(),
   honeypotEnabled: z.boolean().optional(),
+  layout: z.enum(["single_column", "two_column", "compact"]).optional(),
 });
 
-export const createFormSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(3, "Form title must be at least 3 characters")
-    .max(100, "Form title cannot exceed 100 characters"),
-  description: z.string().trim().max(500, "Description cannot exceed 500 characters").optional(),
-  status: z.enum(["draft", "published", "closed"]).default("draft"),
-  fields: z.array(fieldSchema).default([]),
-  slug: z.string().trim().optional(),
-  publishedSlug: z.string().trim().optional(),
-  branding: brandingSchema.optional(),
-  settings: settingsSchema.optional(),
+const formPageSchema = z.object({
+  id: z.string().trim().min(1, "Page id is required"),
+  order: z.number().int().nonnegative(),
+  title: z.string().trim().optional(),
+  description: z.string().trim().optional(),
 });
 
-export const patchFormSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .max(100, "Form title cannot exceed 100 characters")
-    .optional(),
-  description: z.string().trim().max(500, "Description cannot exceed 500 characters").optional(),
-  status: z.enum(["draft", "published", "closed"]).optional(),
-  fields: z.array(fieldSchema).optional(),
-  slug: z.string().trim().optional(),
-  publishedSlug: z.string().trim().optional(),
-  branding: brandingSchema.optional(),
-  settings: settingsSchema.optional(),
-});
+export const createFormSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(3, "Form title must be at least 3 characters")
+      .max(100, "Form title cannot exceed 100 characters"),
+    description: z.string().trim().max(500, "Description cannot exceed 500 characters").optional(),
+    status: z.enum(["draft", "published", "closed"]).default("draft"),
+    fields: z.array(fieldSchema).default([]),
+    pages: z.array(formPageSchema).min(1, "Pages array must not be empty").optional(),
+    slug: z.string().trim().optional(),
+    publishedSlug: z.string().trim().optional(),
+    branding: brandingSchema.optional(),
+    settings: settingsSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.pages && data.pages.length > 0) {
+      const pageIds = new Set(data.pages.map((p) => p.id));
+      data.fields.forEach((field, index) => {
+        if (field.pageId && !pageIds.has(field.pageId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Field pageId "${field.pageId}" does not exist in pages`,
+            path: ["fields", index, "pageId"],
+          });
+        }
+      });
+    }
+  });
+
+export const patchFormSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .max(100, "Form title cannot exceed 100 characters")
+      .optional(),
+    description: z.string().trim().max(500, "Description cannot exceed 500 characters").optional(),
+    status: z.enum(["draft", "published", "closed"]).optional(),
+    fields: z.array(fieldSchema).optional(),
+    pages: z.array(formPageSchema).min(1, "Pages array must not be empty").optional(),
+    slug: z.string().trim().optional(),
+    publishedSlug: z.string().trim().optional(),
+    branding: brandingSchema.optional(),
+    settings: settingsSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.pages && data.fields) {
+      const pageIds = new Set(data.pages.map((p) => p.id));
+      data.fields.forEach((field, index) => {
+        if (field.pageId && !pageIds.has(field.pageId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Field pageId "${field.pageId}" does not exist in pages`,
+            path: ["fields", index, "pageId"],
+          });
+        }
+      });
+    }
+  });
 
 function fieldValidationError(message: string, code: string): Error {
   const err = new Error(message);
@@ -231,7 +272,20 @@ function fieldValidationError(message: string, code: string): Error {
  * Cross-field logic-rule integrity checks that need visibility of the full,
  * merged field list (not just whatever subset was in a given request body).
  */
-export function validateFieldsIntegrity(fields: IFormField[]): void {
+export function validateFieldsIntegrity(fields: IFormField[], pages?: IFormPage[]): void {
+  if (pages && pages.length > 0) {
+    const pageIds = new Set(pages.map((p) => p.id));
+    for (const field of fields) {
+      if (field.deleted) continue;
+      if (field.pageId && !pageIds.has(field.pageId)) {
+        throw fieldValidationError(
+          `Field "${field.label}" references a pageId "${field.pageId}" that does not exist in this form`,
+          "INVALID_PAGE_REFERENCE"
+        );
+      }
+    }
+  }
+
   const allFieldIds = new Set(fields.map((f) => f.fieldId).filter(Boolean));
   const hideTargets = new Set<string>();
 
