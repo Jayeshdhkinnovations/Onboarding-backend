@@ -210,7 +210,25 @@ const FormSchema = new Schema<IForm>(
     branding: { type: BrandingSchema, default: {} },
     settings: { type: FormSettingsSchema, default: {} },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (doc, ret) => {
+        if (ret.status === "published" && ret.publishedSlug) {
+          ret.slug = ret.publishedSlug;
+        }
+        return ret;
+      },
+    },
+    toObject: {
+      transform: (doc, ret) => {
+        if (ret.status === "published" && ret.publishedSlug) {
+          ret.slug = ret.publishedSlug;
+        }
+        return ret;
+      },
+    },
+  }
 );
 
 const Form = mongoose.model<IForm>("Form", FormSchema);

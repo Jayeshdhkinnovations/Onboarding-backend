@@ -1,0 +1,15 @@
+meta {
+  name: Get Public Form by Slug
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{base_url}}/api/public/{{published_slug}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}

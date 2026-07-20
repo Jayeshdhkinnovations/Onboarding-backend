@@ -62,7 +62,7 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
       pages: form.pages,
       branding: form.branding,
       settings: form.settings,
-      slug: form.slug,
+      slug: form.status === "published" ? (form.publishedSlug || form.slug) : form.slug,
       publishedSlug: form.publishedSlug,
       publishedAt: form.publishedAt,
       schemaVersion: form.schemaVersion,
@@ -123,7 +123,7 @@ export const getForm = async (req: Request, res: Response, next: NextFunction): 
       pages: form.pages,
       branding: form.branding,
       settings: form.settings,
-      slug: form.slug,
+      slug: form.status === "published" ? (form.publishedSlug || form.slug) : form.slug,
       publishedSlug: form.publishedSlug,
       publishedAt: form.publishedAt,
       schemaVersion: form.schemaVersion,
@@ -305,7 +305,7 @@ export const patchForm = async (req: Request, res: Response, next: NextFunction)
       pages: form.pages,
       branding: form.branding,
       settings: form.settings,
-      slug: form.slug,
+      slug: form.status === "published" ? (form.publishedSlug || form.slug) : form.slug,
       publishedSlug: form.publishedSlug,
       publishedAt: form.publishedAt,
       schemaVersion: form.schemaVersion,
@@ -555,7 +555,7 @@ export const duplicateForm = async (req: Request, res: Response, next: NextFunct
       pages: form.pages,
       branding: form.branding,
       settings: form.settings,
-      slug: form.slug,
+      slug: form.status === "published" ? (form.publishedSlug || form.slug) : form.slug,
       publishedSlug: form.publishedSlug,
       publishedAt: form.publishedAt,
       schemaVersion: form.schemaVersion,
@@ -565,6 +565,96 @@ export const duplicateForm = async (req: Request, res: Response, next: NextFunct
       success: true,
       message: "Form duplicated successfully",
       form,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPublicFormBySlug = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const slug = req.params.slug as string;
+    const formDoc = await formService.getPublicFormBySlug(slug);
+    const form = formDoc.toObject();
+
+    // Set cache headers compatible with frontend revalidate: 60 (ISR friendly)
+    res.set("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=60");
+
+    // Strip internal properties (workspaceId, preview slug, honeypot settings) and soft-deleted fields
+    const fields = (form.fields || []).filter((f: any) => !f.deleted);
+    const publicFields = fields.map((raw: any) => {
+      const cleanField: any = {
+        fieldId: raw.fieldId,
+        pageId: raw.pageId,
+        label: raw.label,
+        type: raw.type,
+        required: raw.required,
+      };
+      if (raw.minLength !== undefined) cleanField.minLength = raw.minLength;
+      if (raw.maxLength !== undefined) cleanField.maxLength = raw.maxLength;
+      if (raw.pattern !== undefined) cleanField.pattern = raw.pattern;
+      if (raw.min !== undefined) cleanField.min = raw.min;
+      if (raw.max !== undefined) cleanField.max = raw.max;
+      if (raw.minDate !== undefined) cleanField.minDate = raw.minDate;
+      if (raw.maxDate !== undefined) cleanField.maxDate = raw.maxDate;
+      if (raw.options !== undefined && raw.options.length > 0) cleanField.options = raw.options;
+      if (raw.maxFileSize !== undefined) cleanField.maxFileSize = raw.maxFileSize;
+      if (raw.allowedMimeTypes !== undefined && raw.allowedMimeTypes.length > 0) {
+        cleanField.allowedMimeTypes = raw.allowedMimeTypes;
+      }
+      if (raw.logicRules !== undefined && raw.logicRules.length > 0) {
+        cleanField.logicRules = raw.logicRules.map((rule: any) => ({
+          ruleId: rule.ruleId,
+          targetFieldId: rule.targetFieldId,
+          condition: rule.condition,
+          operator: rule.operator,
+          value: rule.value,
+          action: rule.action,
+        }));
+      }
+      return cleanField;
+    });
+
+    const pages = (form.pages || []).map((raw: any) => {
+      return {
+        id: raw.id,
+        order: raw.order,
+        title: raw.title,
+        description: raw.description,
+      };
+    });
+
+    const branding = form.branding || {};
+    const cleanBranding: any = {
+      primaryColor: branding.primaryColor,
+      logoUrl: branding.logoUrl,
+      coverImageUrl: branding.coverImageUrl,
+    };
+
+    const settings = form.settings || {};
+    const cleanSettings: any = {};
+    if (settings.successMessage !== undefined) cleanSettings.successMessage = settings.successMessage;
+    if (settings.layout !== undefined) cleanSettings.layout = settings.layout;
+    if (settings.responseLimitEnabled !== undefined) cleanSettings.responseLimitEnabled = settings.responseLimitEnabled;
+    if (settings.responseLimit !== undefined) cleanSettings.responseLimit = settings.responseLimit;
+    if (settings.closeDate !== undefined) cleanSettings.closeDate = settings.closeDate;
+
+    res.status(200).json({
+      success: true,
+      _id: form._id,
+      title: form.title,
+      description: form.description,
+      status: form.status,
+      fields: publicFields,
+      pages,
+      branding: cleanBranding,
+      settings: cleanSettings,
+      publishedSlug: form.publishedSlug,
+      publishedAt: form.publishedAt,
     });
   } catch (error) {
     next(error);

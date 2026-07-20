@@ -11,6 +11,7 @@ import formRoutes from "./routes/form.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import uploadRoutes from "./routes/upload.routes";
 import templateRoutes from "./routes/template.routes";
+import publicRoutes from "./routes/public.routes";
 import { errorHandler } from "./middleware/error.middleware";
 
 // Continuous Deployment Test Comment
@@ -35,6 +36,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/forms", formRoutes);
+app.use("/api/public", publicRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/templates", templateRoutes);

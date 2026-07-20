@@ -613,6 +613,26 @@ export class FormService {
 
     return await this.formRepository.create(workspaceId, duplicateData as any);
   }
+
+  async getPublicFormBySlug(slug: string): Promise<IForm> {
+    if (!slug || typeof slug !== "string") {
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    const form = await this.formRepository.findOne({ publishedSlug: slug });
+    if (!form) {
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    if (form.status !== "published") {
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+    return form;
+  }
 }
 
 function deepEqual(a: any, b: any): boolean {
