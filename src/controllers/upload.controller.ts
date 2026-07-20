@@ -180,7 +180,7 @@ export const getFile = async (
         token = cookies.token || cookies.jwt || cookies.access_token;
       }
 
-      if (!token) {
+      if (!token || token === "undefined" || token === "null") {
         res.status(401).json({
           success: false,
           message: "Unauthorized access to private files",
