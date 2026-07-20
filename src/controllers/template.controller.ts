@@ -21,6 +21,7 @@ export const getTemplates = async (req: Request, res: Response): Promise<void> =
     res.status(200).json({
       success: true,
       data: templates.map((t) => ({
+        _id: t._id.toString(),
         id: t._id.toString(),
         name: t.name,
         category: t.category,
