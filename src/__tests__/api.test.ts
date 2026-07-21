@@ -97,6 +97,8 @@ describe("Onboarding Platform Integration Tests", () => {
         
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
+      expect(res.headers["set-cookie"]).toBeDefined();
+      expect(res.headers["set-cookie"][0]).toContain("token=");
       expect(res.body.token).toBeDefined();
       expect(res.body.user).toBeDefined();
       expect(res.body.user.email).toBe(signupData.email);
@@ -159,6 +161,8 @@ describe("Onboarding Platform Integration Tests", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+      expect(res.headers["set-cookie"]).toBeDefined();
+      expect(res.headers["set-cookie"][0]).toContain("token=");
       expect(res.body.token).toBeDefined();
       expect(res.body.isNewUser).toBe(true);
       expect(res.body.user.email).toBe("sessionuser@test.com");
@@ -215,6 +219,8 @@ describe("Onboarding Platform Integration Tests", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+      expect(res.headers["set-cookie"]).toBeDefined();
+      expect(res.headers["set-cookie"][0]).toContain("token=;");
       expect(res.body.message).toContain("Logged out successfully");
     });
   });

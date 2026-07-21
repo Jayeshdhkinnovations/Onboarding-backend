@@ -62,6 +62,13 @@ export const signup = async (
     });
 
     // Step 8: Send Response
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
     res.status(201).json({
       success: true,
       message: "Signup successful.",
@@ -191,6 +198,13 @@ export const session = async (
       role: user!.role,
     });
 
+    res.cookie("token", jwtToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
     res.status(200).json({
       success: true,
       token: jwtToken,
@@ -210,6 +224,11 @@ export const logout = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+  });
   res.status(200).json({
     success: true,
     message: "Logged out successfully.",
