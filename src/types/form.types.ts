@@ -73,3 +73,9 @@ export interface PublicFormResponse {
   publishedSlug: string;
   publishedAt: Date;
 }
+
+export interface PublicSubmitResponse {
+  success: boolean;
+  message: string;
+  submission?: any;
+}

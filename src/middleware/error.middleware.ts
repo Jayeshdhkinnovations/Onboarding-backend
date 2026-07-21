@@ -34,6 +34,17 @@ export const errorHandler = (
     return;
   }
 
+  // Form Validation Error (422)
+  if (err.name === "FormValidationError") {
+    res.status(422).json({
+      success: false,
+      message: err.message,
+      errors: err.errors,
+      error: { message: err.message }
+    });
+    return;
+  }
+
   // Mongoose Validation Error
   if (err instanceof mongoose.Error.ValidationError) {
     res.status(400).json({

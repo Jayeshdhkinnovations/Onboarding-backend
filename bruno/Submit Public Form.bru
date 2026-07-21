@@ -1,0 +1,20 @@
+meta {
+  name: Submit Public Form
+  type: http
+  seq: 21
+}
+
+post {
+  url: {{base_url}}/api/public/{{published_slug}}/submit
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  data: {"EmailField": "john@example.com", "NumberField": 15, "TextField": "hello"}
+  _hp: 
+}
+
+assert {
+  res.status: eq 201
+}

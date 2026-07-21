@@ -321,3 +321,75 @@ export function validateFieldsIntegrity(fields: IFormField[], pages?: IFormPage[
     }
   }
 }
+
+export const getHiddenFieldIds = (fields: any[], answers: Record<string, any>): Set<string> => {
+  const hiddenFieldIds = new Set<string>();
+
+  // 1. Map fields by fieldId
+  const fieldMap = new Map<string, any>();
+  for (const f of fields) {
+    if (f.fieldId) {
+      fieldMap.set(f.fieldId, f);
+    }
+  }
+
+  // 2. Identify all logic rules targeting each field
+  const showRulesMap = new Map<string, Array<{ rule: any; sourceField: any }>>();
+  const hideRulesMap = new Map<string, Array<{ rule: any; sourceField: any }>>();
+  const hasShowRules = new Set<string>();
+
+  for (const f of fields) {
+    if (f.deleted || !f.logicRules) continue;
+    for (const rule of f.logicRules) {
+      const targetId = rule.targetFieldId;
+      if (!targetId) continue;
+
+      if (rule.action === "show") {
+        hasShowRules.add(targetId);
+        if (!showRulesMap.has(targetId)) showRulesMap.set(targetId, []);
+        showRulesMap.get(targetId)!.push({ rule, sourceField: f });
+      } else if (rule.action === "hide") {
+        if (!hideRulesMap.has(targetId)) hideRulesMap.set(targetId, []);
+        hideRulesMap.get(targetId)!.push({ rule, sourceField: f });
+      }
+    }
+  }
+
+  // Helper to evaluate a single rule's condition
+  const isConditionMet = (rule: any, sourceField: any): boolean => {
+    let srcField = sourceField;
+    if (rule.condition && rule.condition.fieldId) {
+      srcField = fieldMap.get(rule.condition.fieldId);
+    }
+    if (!srcField) return false;
+
+    const val = answers[srcField.label];
+    if (val === undefined || val === null) return false;
+
+    const targetVal = rule.condition ? rule.condition.value : rule.value;
+    return String(val) === String(targetVal);
+  };
+
+  // 3. Determine visibility for each field
+  for (const f of fields) {
+    const fieldId = f.fieldId;
+    if (!fieldId) continue;
+
+    // A field targeted by at least one 'show' rule is hidden by default
+    let isVisible = true;
+    if (hasShowRules.has(fieldId)) {
+      const rules = showRulesMap.get(fieldId) || [];
+      isVisible = rules.some(({ rule, sourceField }) => isConditionMet(rule, sourceField));
+    }
+
+    // A field targeted by a met 'hide' rule becomes hidden
+    const hideRules = hideRulesMap.get(fieldId) || [];
+    const isHidden = !isVisible || hideRules.some(({ rule, sourceField }) => isConditionMet(rule, sourceField));
+
+    if (isHidden) {
+      hiddenFieldIds.add(fieldId);
+    }
+  }
+
+  return hiddenFieldIds;
+};

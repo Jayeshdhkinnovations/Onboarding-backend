@@ -439,18 +439,18 @@ describe("Onboarding Platform Integration Tests", () => {
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Favorite color": "Blue" } });
 
-      expect(badSubRes1.status).toBe(400);
+      expect(badSubRes1.status).toBe(422);
       expect(badSubRes1.body.success).toBe(false);
-      expect(badSubRes1.body.message).toContain("required");
+      expect(badSubRes1.body.errors[0].message).toContain("required");
 
       // 4. Submit Form (fails validation because dropdown selection is invalid)
       const badSubRes2 = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Full Name": "Jayesh", "Favorite color": "Yellow" } });
 
-      expect(badSubRes2.status).toBe(400);
+      expect(badSubRes2.status).toBe(422);
       expect(badSubRes2.body.success).toBe(false);
-      expect(badSubRes2.body.message).toContain("not a valid option");
+      expect(badSubRes2.body.errors[0].message).toContain("not a valid option");
 
       // 5. Submit Form (Success)
       const goodSubRes = await request(app)
@@ -1044,81 +1044,82 @@ describe("Onboarding Platform Integration Tests", () => {
       const badReq = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: {} });
-      expect(badReq.status).toBe(400);
-      expect(badReq.body.message).toContain("required");
+      expect(badReq.status).toBe(422);
+      expect(badReq.body.message).toContain("Validation failed");
+      expect(badReq.body.errors[0].message).toContain("required");
 
       // 2. Check Text length validations
       const badTextShort = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "ab", "Email": "a@b.com" } });
-      expect(badTextShort.status).toBe(400);
-      expect(badTextShort.body.message).toContain("must be at least 3 characters");
+      expect(badTextShort.status).toBe(422);
+      expect(badTextShort.body.errors[0].message).toContain("must be at least 3 characters");
 
       const badTextLong = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdefghi", "Email": "a@b.com" } });
-      expect(badTextLong.status).toBe(400);
-      expect(badTextLong.body.message).toContain("cannot exceed 8 characters");
+      expect(badTextLong.status).toBe(422);
+      expect(badTextLong.body.errors[0].message).toContain("cannot exceed 8 characters");
 
       // 3. Check Email format validation
       const badEmail = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "invalid-email" } });
-      expect(badEmail.status).toBe(400);
-      expect(badEmail.body.message).toContain("must be a valid email address");
+      expect(badEmail.status).toBe(422);
+      expect(badEmail.body.errors[0].message).toContain("must be a valid email address");
 
       // 4. Check Phone pattern validation
       const badPhone = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Phone": "12345" } });
-      expect(badPhone.status).toBe(400);
-      expect(badPhone.body.message).toContain("must match format pattern");
+      expect(badPhone.status).toBe(422);
+      expect(badPhone.body.errors[0].message).toContain("must match format pattern");
 
       // 5. Check Number bounds validation
       const badNumMin = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Number": 5 } });
-      expect(badNumMin.status).toBe(400);
-      expect(badNumMin.body.message).toContain("must be at least 10");
+      expect(badNumMin.status).toBe(422);
+      expect(badNumMin.body.errors[0].message).toContain("must be at least 10");
 
       const badNumMax = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Number": 25 } });
-      expect(badNumMax.status).toBe(400);
-      expect(badNumMax.body.message).toContain("cannot exceed 20");
+      expect(badNumMax.status).toBe(422);
+      expect(badNumMax.body.errors[0].message).toContain("cannot exceed 20");
 
       // 6. Check Date limits validation
       const badDateMin = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Date": "2026-05-15" } });
-      expect(badDateMin.status).toBe(400);
-      expect(badDateMin.body.message).toContain("cannot be earlier than 2026-06-01");
+      expect(badDateMin.status).toBe(422);
+      expect(badDateMin.body.errors[0].message).toContain("cannot be earlier than 2026-06-01");
 
       const badDateMax = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Date": "2026-07-01" } });
-      expect(badDateMax.status).toBe(400);
-      expect(badDateMax.body.message).toContain("cannot be later than 2026-06-30");
+      expect(badDateMax.status).toBe(422);
+      expect(badDateMax.body.errors[0].message).toContain("cannot be later than 2026-06-30");
 
       // 7. Check Dropdown / MultipleChoice validation
       const badDropdown = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Dropdown": "C" } });
-      expect(badDropdown.status).toBe(400);
-      expect(badDropdown.body.message).toContain("not a valid option");
+      expect(badDropdown.status).toBe(422);
+      expect(badDropdown.body.errors[0].message).toContain("not a valid option");
 
       // 8. Check Checkbox validation (single boolean vs multi-select array)
       const badCheckboxSingle = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "CheckboxSingle": "yes" } });
-      expect(badCheckboxSingle.status).toBe(400);
-      expect(badCheckboxSingle.body.message).toContain("must be a boolean");
+      expect(badCheckboxSingle.status).toBe(422);
+      expect(badCheckboxSingle.body.errors[0].message).toContain("must be a boolean");
 
       const badCheckboxMulti = await request(app)
         .post(`/api/forms/${formId}/submissions`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "CheckboxMulti": ["Green"] } });
-      expect(badCheckboxMulti.status).toBe(400);
-      expect(badCheckboxMulti.body.message).toContain("not a valid option for checkbox field");
+      expect(badCheckboxMulti.status).toBe(422);
+      expect(badCheckboxMulti.body.errors[0].message).toContain("not a valid option for checkbox field");
 
       // 9. Check File upload validation
       const badFileSize = await request(app)
@@ -1130,8 +1131,8 @@ describe("Onboarding Platform Integration Tests", () => {
             "File": { fileName: "photo.jpg", fileSize: 3 * 1024 * 1024, mimeType: "image/jpeg" } // 3MB exceeds 2MB
           }
         });
-      expect(badFileSize.status).toBe(400);
-      expect(badFileSize.body.message).toContain("file size exceeds the limit");
+      expect(badFileSize.status).toBe(422);
+      expect(badFileSize.body.errors[0].message).toContain("file size exceeds the limit");
 
       const badFileMime = await request(app)
         .post(`/api/forms/${formId}/submissions`)
@@ -1142,8 +1143,8 @@ describe("Onboarding Platform Integration Tests", () => {
             "File": { fileName: "document.pdf", fileSize: 1 * 1024 * 1024, mimeType: "application/pdf" } // mime pdf not allowed
           }
         });
-      expect(badFileMime.status).toBe(400);
-      expect(badFileMime.body.message).toContain("file type \"application/pdf\" is not allowed");
+      expect(badFileMime.status).toBe(422);
+      expect(badFileMime.body.errors[0].message).toContain("file type \"application/pdf\" is not allowed");
 
       // 10. Valid Submission (Success)
       const goodRes = await request(app)

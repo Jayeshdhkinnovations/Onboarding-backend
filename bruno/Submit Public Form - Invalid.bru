@@ -1,0 +1,22 @@
+meta {
+  name: Submit Public Form - Invalid
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{base_url}}/api/public/{{published_slug}}/submit
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  data: {"EmailField": "invalid-email", "NumberField": 5, "TextField": "too-long-text-value"}
+  _hp: 
+}
+
+assert {
+  res.status: eq 422
+  res.body.success: eq false
+  res.body.message: eq Validation failed
+}

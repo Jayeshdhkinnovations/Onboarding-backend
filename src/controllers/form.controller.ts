@@ -2,6 +2,10 @@ import { Request, Response, NextFunction } from "express";
 import { FormService } from "../services/form.service";
 import { createFormSchema, patchFormSchema } from "../validations/form.validator";
 import Workspace from "../models/Workspace";
+import Upload from "../models/Upload";
+import path from "path";
+import fs from "fs";
+import { getUploadDir } from "./upload.controller";
 
 const formService = new FormService();
 
@@ -656,6 +660,159 @@ export const getPublicFormBySlug = async (
       publishedSlug: form.publishedSlug,
       publishedAt: form.publishedAt,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const cleanupUploadedFiles = async (files: Express.Multer.File[], deleteFromDb = false) => {
+  if (!files || files.length === 0) return;
+  const uploadDir = getUploadDir();
+  for (const file of files) {
+    const filePath = path.resolve(uploadDir, file.filename);
+    if (fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {
+        console.error("Failed to delete physical file during cleanup:", e);
+      }
+    }
+    if (deleteFromDb) {
+      try {
+        await Upload.deleteOne({ path: file.filename });
+      } catch (e) {
+        console.error("Failed to delete Upload document during cleanup:", e);
+      }
+    }
+  }
+};
+
+export const submitPublicForm = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const slug = req.params.slug as string;
+    const { data, _hp } = req.body;
+
+    // Honeypot check for bots (silent discard)
+    if (_hp) {
+      res.status(201).json({
+        success: true,
+        message: "Response submitted successfully",
+      });
+      return;
+    }
+
+    // Parse answers JSON
+    let answers: Record<string, any> = {};
+    if (data) {
+      try {
+        answers = JSON.parse(data);
+      } catch (e) {
+        cleanupUploadedFiles(req.files as Express.Multer.File[]);
+        res.status(422).json({
+          success: false,
+          message: "Validation failed",
+          errors: [{ field: "data", message: "Invalid JSON format in data field" }],
+          error: { message: "Validation failed" }
+        });
+        return;
+      }
+    }
+
+    // Retrieve the published form
+    const formDoc = await formService.getPublicFormBySlug(slug);
+    const form = formDoc.toObject();
+
+    // Map and validate files matching file_upload fields
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      for (const field of form.fields) {
+        if (field.type === "file_upload" && !field.deleted) {
+          const file = (req.files as Express.Multer.File[]).find(
+            (f) => f.fieldname === field.label || f.fieldname === field.fieldId
+          );
+          if (file) {
+            // Validate file size limit (in MB)
+            if (field.maxFileSize !== undefined) {
+              const fileSizeMB = file.size / (1024 * 1024);
+              if (fileSizeMB > field.maxFileSize) {
+                await cleanupUploadedFiles(req.files as Express.Multer.File[]);
+                res.status(422).json({
+                  success: false,
+                  message: "Validation failed",
+                  errors: [{
+                    field: field.label,
+                    message: `Field "${field.label}" file size exceeds the limit of ${field.maxFileSize} MB.`
+                  }],
+                  error: { message: "Validation failed" }
+                });
+                return;
+              }
+            }
+            // Validate file MIME types
+            if (field.allowedMimeTypes && field.allowedMimeTypes.length > 0) {
+              if (!field.allowedMimeTypes.includes(file.mimetype)) {
+                await cleanupUploadedFiles(req.files as Express.Multer.File[]);
+                res.status(422).json({
+                  success: false,
+                  message: "Validation failed",
+                  errors: [{
+                    field: field.label,
+                    message: `Field "${field.label}" file type "${file.mimetype}" is not allowed. Allowed types: ${field.allowedMimeTypes.join(", ")}.`
+                  }],
+                  error: { message: "Validation failed" }
+                });
+                return;
+              }
+            }
+
+            // Create Upload metadata document
+            const workspace = await Workspace.findById(form.workspaceId);
+            if (!workspace) {
+              await cleanupUploadedFiles(req.files as Express.Multer.File[]);
+              res.status(400).json({
+                success: false,
+                message: "Workspace not found",
+              });
+              return;
+            }
+
+            await Upload.create({
+              name: file.originalname,
+              size: file.size,
+              type: file.mimetype,
+              path: file.filename,
+              owner: workspace.owner,
+              uploadTime: new Date(),
+              isBranding: false,
+            });
+
+            // Map safe file URL to response answers key
+            const fileUrl = `${req.protocol}://${req.get("host")}/api/upload/file/${file.filename}`;
+            answers[field.label] = {
+              fileName: fileUrl,
+              fileSize: file.size,
+              mimeType: file.mimetype,
+            };
+          }
+        }
+      }
+    }
+
+    // Call dynamic validation and persistence routine in formService
+    try {
+      const submission = await formService.submitForm(form._id.toString(), answers);
+      res.status(201).json({
+        success: true,
+        message: "Response submitted successfully",
+        submission,
+      });
+    } catch (submitError) {
+      await cleanupUploadedFiles(req.files as Express.Multer.File[], true);
+      throw submitError;
+    }
   } catch (error) {
     next(error);
   }

@@ -7,10 +7,21 @@ import fs from "fs";
 import path from "path";
 import mongoose from "mongoose";
 import { nanoid } from "nanoid";
-import { validateFieldsIntegrity } from "../validations/form.validator";
+import { validateFieldsIntegrity, getHiddenFieldIds } from "../validations/form.validator";
 
 const CHOICE_FIELD_TYPES = ["dropdown", "multiple_choice"];
 const MAX_SLUG_ATTEMPTS = 5;
+
+export class FormValidationError extends Error {
+  statusCode = 422;
+  errors: Array<{ field: string; message: string }>;
+
+  constructor(errors: Array<{ field: string; message: string }>) {
+    super("Validation failed");
+    this.name = "FormValidationError";
+    this.errors = errors;
+  }
+}
 
 export class FormService {
   private formRepository = new FormRepository();
@@ -411,36 +422,39 @@ export class FormService {
     }
 
     // Dynamic validation logic against form fields
+    const hiddenFieldIds = getHiddenFieldIds(form.fields, answers);
+    const validationErrors: Array<{ field: string; message: string }> = [];
+
     for (const field of form.fields) {
       if (field.deleted) {
         continue;
       }
+
+      // Skip conditionally hidden fields from validation (hidden fields are never required)
+      if (field.fieldId && hiddenFieldIds.has(field.fieldId)) {
+        continue;
+      }
+
       const value = answers[field.label];
       
       // 1. Required check
       if (field.required && (value === undefined || value === null || value === "")) {
-        const err = new Error(`Field "${field.label}" is required.`);
-        (err as any).statusCode = 400;
-        throw err;
+        validationErrors.push({ field: field.label, message: `Field "${field.label}" is required.` });
+        continue;
       }
 
       if (value !== undefined && value !== null && value !== "") {
         // 2. Validate Text and Long Text shapes (minLength, maxLength)
         if (field.type === "short_text" || field.type === "long_text") {
           if (typeof value !== "string") {
-            const err = new Error(`Field "${field.label}" must be a string.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" must be a string.` });
+            continue;
           }
           if (field.minLength !== undefined && value.length < field.minLength) {
-            const err = new Error(`Field "${field.label}" must be at least ${field.minLength} characters.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" must be at least ${field.minLength} characters.` });
           }
           if (field.maxLength !== undefined && value.length > field.maxLength) {
-            const err = new Error(`Field "${field.label}" cannot exceed ${field.maxLength} characters.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" cannot exceed ${field.maxLength} characters.` });
           }
         }
 
@@ -448,25 +462,20 @@ export class FormService {
         if (field.type === "email") {
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
           if (typeof value !== "string" || !emailRegex.test(value)) {
-            const err = new Error(`Field "${field.label}" must be a valid email address.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" must be a valid email address.` });
           }
         }
 
         // 4. Validate Phone shape (with optional regex pattern)
         if (field.type === "phone") {
           if (typeof value !== "string") {
-            const err = new Error(`Field "${field.label}" must be a string.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" must be a string.` });
+            continue;
           }
           if (field.pattern) {
             const regex = new RegExp(field.pattern);
             if (!regex.test(value)) {
-              const err = new Error(`Field "${field.label}" must match format pattern: ${field.pattern}.`);
-              (err as any).statusCode = 400;
-              throw err;
+              validationErrors.push({ field: field.label, message: `Field "${field.label}" must match format pattern: ${field.pattern}.` });
             }
           }
         }
@@ -475,19 +484,14 @@ export class FormService {
         if (field.type === "number") {
           const numValue = Number(value);
           if (isNaN(numValue)) {
-            const err = new Error(`Field "${field.label}" must be a valid number.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" must be a valid number.` });
+            continue;
           }
           if (field.min !== undefined && numValue < field.min) {
-            const err = new Error(`Field "${field.label}" must be at least ${field.min}.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" must be at least ${field.min}.` });
           }
           if (field.max !== undefined && numValue > field.max) {
-            const err = new Error(`Field "${field.label}" cannot exceed ${field.max}.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" cannot exceed ${field.max}.` });
           }
         }
 
@@ -495,24 +499,19 @@ export class FormService {
         if (field.type === "date") {
           const dateValue = new Date(value);
           if (isNaN(dateValue.getTime())) {
-            const err = new Error(`Field "${field.label}" must be a valid date.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({ field: field.label, message: `Field "${field.label}" must be a valid date.` });
+            continue;
           }
           if (field.minDate) {
             const minDateVal = new Date(field.minDate);
             if (!isNaN(minDateVal.getTime()) && dateValue < minDateVal) {
-              const err = new Error(`Field "${field.label}" date cannot be earlier than ${field.minDate}.`);
-              (err as any).statusCode = 400;
-              throw err;
+              validationErrors.push({ field: field.label, message: `Field "${field.label}" date cannot be earlier than ${field.minDate}.` });
             }
           }
           if (field.maxDate) {
             const maxDateVal = new Date(field.maxDate);
             if (!isNaN(maxDateVal.getTime()) && dateValue > maxDateVal) {
-              const err = new Error(`Field "${field.label}" date cannot be later than ${field.maxDate}.`);
-              (err as any).statusCode = 400;
-              throw err;
+              validationErrors.push({ field: field.label, message: `Field "${field.label}" date cannot be later than ${field.maxDate}.` });
             }
           }
         }
@@ -520,9 +519,10 @@ export class FormService {
         // 7. Validate Dropdown and Multiple Choice (options check)
         if (field.type === "dropdown" || field.type === "multiple_choice") {
           if (!field.options || !field.options.includes(value)) {
-            const err = new Error(`Value "${value}" is not a valid option for field "${field.label}". Valid options: ${(field.options || []).join(", ")}`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({
+              field: field.label,
+              message: `Value "${value}" is not a valid option for field "${field.label}". Valid options: ${(field.options || []).join(", ")}`
+            });
           }
         }
 
@@ -532,16 +532,15 @@ export class FormService {
             const selectedArr = Array.isArray(value) ? value : [value];
             for (const val of selectedArr) {
               if (!field.options.includes(val)) {
-                const err = new Error(`Value "${val}" is not a valid option for checkbox field "${field.label}".`);
-                (err as any).statusCode = 400;
-                throw err;
+                validationErrors.push({
+                  field: field.label,
+                  message: `Value "${val}" is not a valid option for checkbox field "${field.label}".`
+                });
               }
             }
           } else {
             if (typeof value !== "boolean" && value !== "true" && value !== "false" && value !== true && value !== false) {
-              const err = new Error(`Field "${field.label}" must be a boolean (true/false).`);
-              (err as any).statusCode = 400;
-              throw err;
+              validationErrors.push({ field: field.label, message: `Field "${field.label}" must be a boolean (true/false).` });
             }
           }
         }
@@ -549,27 +548,35 @@ export class FormService {
         // 9. Validate File Upload settings (maxFileSize, allowedMimeTypes check)
         if (field.type === "file_upload") {
           if (typeof value !== "object" || !value.fileName || value.fileSize === undefined || !value.mimeType) {
-            const err = new Error(`Field "${field.label}" must be a valid file upload payload containing fileName, fileSize (bytes), and mimeType.`);
-            (err as any).statusCode = 400;
-            throw err;
+            validationErrors.push({
+              field: field.label,
+              message: `Field "${field.label}" must be a valid file upload payload containing fileName, fileSize (bytes), and mimeType.`
+            });
+            continue;
           }
           if (field.maxFileSize !== undefined) {
             const fileSizeMB = value.fileSize / (1024 * 1024);
             if (fileSizeMB > field.maxFileSize) {
-              const err = new Error(`Field "${field.label}" file size exceeds the limit of ${field.maxFileSize} MB.`);
-              (err as any).statusCode = 400;
-              throw err;
+              validationErrors.push({
+                field: field.label,
+                message: `Field "${field.label}" file size exceeds the limit of ${field.maxFileSize} MB.`
+              });
             }
           }
           if (field.allowedMimeTypes && field.allowedMimeTypes.length > 0) {
             if (!field.allowedMimeTypes.includes(value.mimeType)) {
-              const err = new Error(`Field "${field.label}" file type "${value.mimeType}" is not allowed. Allowed types: ${field.allowedMimeTypes.join(", ")}.`);
-              (err as any).statusCode = 400;
-              throw err;
+              validationErrors.push({
+                field: field.label,
+                message: `Field "${field.label}" file type "${value.mimeType}" is not allowed. Allowed types: ${field.allowedMimeTypes.join(", ")}.`
+              });
             }
           }
         }
       }
+    }
+
+    if (validationErrors.length > 0) {
+      throw new FormValidationError(validationErrors);
     }
 
     return await ResponseModel.create({
