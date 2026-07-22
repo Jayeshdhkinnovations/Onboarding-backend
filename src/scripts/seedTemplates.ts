@@ -75,6 +75,24 @@ const seedTemplates = async () => {
           { label: "Delivery Notes", type: "long_text" as const, required: false },
         ],
       },
+      {
+        name: "Master Comprehensive Template",
+        category: "General",
+        theme: "classic-light",
+        isActive: true,
+        fields: [
+          { label: "Short Text Field", type: "short_text" as const, required: true, minLength: 3, maxLength: 50 },
+          { label: "Long Text Field", type: "long_text" as const, required: false, minLength: 10, maxLength: 500 },
+          { label: "Email Field", type: "email" as const, required: true },
+          { label: "Phone Field", type: "phone" as const, required: false, pattern: "^\\+[1-9]\\d{1,14}$" },
+          { label: "Number Field", type: "number" as const, required: true, min: 1, max: 100 },
+          { label: "Date Field", type: "date" as const, required: true, minDate: "2026-01-01", maxDate: "2026-12-31" },
+          { label: "Dropdown Field", type: "dropdown" as const, required: true, options: ["Option X", "Option Y", "Option Z"] },
+          { label: "Multiple Choice Field", type: "multiple_choice" as const, required: true, options: ["Choice A", "Choice B"] },
+          { label: "Checkbox Field", type: "checkbox" as const, required: false, options: ["Check 1", "Check 2"] },
+          { label: "File Upload Field", type: "file_upload" as const, required: true, maxFileSize: 5, allowedMimeTypes: ["image/jpeg", "image/png"] }
+        ],
+      },
     ];
 
     const inserted = await Template.insertMany(templates);

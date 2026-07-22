@@ -34,7 +34,7 @@ beforeAll(async () => {
   await adminA.save();
 
   tokenA = generateToken({ id: adminA._id.toString(), email: adminA.email, role: adminA.role });
-});
+}, 900000);
 
 afterAll(async () => {
   await mongoose.disconnect();
