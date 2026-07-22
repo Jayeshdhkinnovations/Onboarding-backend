@@ -365,7 +365,7 @@ export const getHiddenFieldIds = (fields: any[], answers: Record<string, any>): 
     }
     if (!srcField) return false;
 
-    const val = answers[srcField.label];
+    const val = (srcField.fieldId && answers[srcField.fieldId] !== undefined) ? answers[srcField.fieldId] : answers[srcField.label];
     if (val === undefined || val === null) return false;
 
     const targetVal = rule.condition ? rule.condition.value : rule.value;

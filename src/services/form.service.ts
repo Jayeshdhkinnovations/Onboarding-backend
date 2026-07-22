@@ -435,7 +435,10 @@ export class FormService {
         continue;
       }
 
-      const value = answers[field.label];
+      let value = (field.fieldId && answers[field.fieldId] !== undefined) ? answers[field.fieldId] : answers[field.label];
+      if (field.type === "file_upload") {
+        value = answers[field.label];
+      }
       
       // 1. Required check
       if (field.required && (value === undefined || value === null || value === "")) {
