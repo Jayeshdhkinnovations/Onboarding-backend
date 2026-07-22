@@ -223,10 +223,17 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
     expect(uploadMeta?.owner.toString()).toBe(adminA._id.toString());
     expect(uploadMeta?.name).toBe("test-upload.png");
 
-    // Verify response answers contains the file url
+    // Verify response answers contains the file url and linked fieldId key
     const dbSub = await ResponseModel.findOne({ formId });
     expect(dbSub?.answers.FileField).toBeDefined();
     expect(dbSub?.answers.FileField.fileName).toContain("/api/upload/file/");
+
+    const formRecord = await Form.findById(formId);
+    const fileField = formRecord?.fields.find(f => f.type === "file_upload");
+    expect(fileField).toBeDefined();
+    if (fileField && fileField.fieldId) {
+      expect(dbSub?.answers[fileField.fieldId]).toBe(uploadMeta?.path);
+    }
 
     // Cleanup physical test upload
     if (uploadMeta) {

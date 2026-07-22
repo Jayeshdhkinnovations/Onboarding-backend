@@ -1,0 +1,22 @@
+meta {
+  name: Submit Public Form - With File
+  type: http
+  seq: 23
+}
+
+post {
+  url: {{base_url}}/api/public/{{published_slug}}/submit
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  data: {"EmailField": "john@example.com", "NumberField": 15, "TextField": "hello"}
+  FileField: @file(package.json)
+  _hp: 
+}
+
+assert {
+  res.status: eq 201
+  res.body.success: eq true
+}

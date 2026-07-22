@@ -55,6 +55,16 @@ export const errorHandler = (
     return;
   }
 
+  // Multer Errors (e.g. LIMIT_FILE_SIZE)
+  if (err.name === "MulterError") {
+    res.status(400).json({
+      success: false,
+      message: err.message || "File upload error",
+      error: { message: err.message || "File upload error", code: err.code }
+    });
+    return;
+  }
+
   // Default Error
   const statusCode = err.statusCode || 500;
   res.status(statusCode).json({

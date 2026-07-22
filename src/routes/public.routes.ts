@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
 const uploadAny = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // Generous 10MB per file limit; exact field bounds validated per field
+    fileSize: 100 * 1024 * 1024, // Enforce 100MB per-file limit server-side via Multer
   },
 }).any();
 

@@ -692,12 +692,14 @@ export const submitPublicForm = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  let submissionSuccess = false;
   try {
     const slug = req.params.slug as string;
     const { data, _hp } = req.body;
 
     // Honeypot check for bots (silent discard)
     if (_hp) {
+      submissionSuccess = true;
       res.status(201).json({
         success: true,
         message: "Response submitted successfully",
@@ -711,7 +713,6 @@ export const submitPublicForm = async (
       try {
         answers = JSON.parse(data);
       } catch (e) {
-        cleanupUploadedFiles(req.files as Express.Multer.File[]);
         res.status(422).json({
           success: false,
           message: "Validation failed",
@@ -719,6 +720,25 @@ export const submitPublicForm = async (
           error: { message: "Validation failed" }
         });
         return;
+      }
+    }
+
+    // Enforce 100 MB absolute limit on all uploaded files
+    if (req.files && Array.isArray(req.files)) {
+      for (const file of req.files as Express.Multer.File[]) {
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB > 100) {
+          res.status(422).json({
+            success: false,
+            message: "Validation failed",
+            errors: [{
+              field: file.fieldname,
+              message: `File size exceeds the absolute limit of 100 MB.`
+            }],
+            error: { message: "Validation failed" }
+          });
+          return;
+        }
       }
     }
 
@@ -738,7 +758,6 @@ export const submitPublicForm = async (
             if (field.maxFileSize !== undefined) {
               const fileSizeMB = file.size / (1024 * 1024);
               if (fileSizeMB > field.maxFileSize) {
-                await cleanupUploadedFiles(req.files as Express.Multer.File[]);
                 res.status(422).json({
                   success: false,
                   message: "Validation failed",
@@ -754,7 +773,6 @@ export const submitPublicForm = async (
             // Validate file MIME types
             if (field.allowedMimeTypes && field.allowedMimeTypes.length > 0) {
               if (!field.allowedMimeTypes.includes(file.mimetype)) {
-                await cleanupUploadedFiles(req.files as Express.Multer.File[]);
                 res.status(422).json({
                   success: false,
                   message: "Validation failed",
@@ -771,7 +789,6 @@ export const submitPublicForm = async (
             // Create Upload metadata document
             const workspace = await Workspace.findById(form.workspaceId);
             if (!workspace) {
-              await cleanupUploadedFiles(req.files as Express.Multer.File[]);
               res.status(400).json({
                 success: false,
                 message: "Workspace not found",
@@ -796,25 +813,30 @@ export const submitPublicForm = async (
               fileSize: file.size,
               mimeType: file.mimetype,
             };
+
+            // Link each stored file's key/path to its answer fieldId on the response record
+            if (field.fieldId) {
+              answers[field.fieldId] = file.filename;
+            }
           }
         }
       }
     }
 
     // Call dynamic validation and persistence routine in formService
-    try {
-      const submission = await formService.submitForm(form._id.toString(), answers);
-      res.status(201).json({
-        success: true,
-        message: "Response submitted successfully",
-        submission,
-      });
-    } catch (submitError) {
-      await cleanupUploadedFiles(req.files as Express.Multer.File[], true);
-      throw submitError;
-    }
+    const submission = await formService.submitForm(form._id.toString(), answers);
+    submissionSuccess = true;
+    res.status(201).json({
+      success: true,
+      message: "Response submitted successfully",
+      submission,
+    });
   } catch (error) {
     next(error);
+  } finally {
+    if (!submissionSuccess && req.files && Array.isArray(req.files) && req.files.length > 0) {
+      await cleanupUploadedFiles(req.files as Express.Multer.File[], true);
+    }
   }
 };
 
