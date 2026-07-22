@@ -21,11 +21,15 @@ const seedTemplates = async () => {
         category: "General",
         theme: "classic-light",
         isActive: true,
+        pages: [
+          { id: "page-1", order: 0, title: "Identity Details", description: "Please enter your name and comments." },
+          { id: "page-2", order: 1, title: "Contact Details", description: "How can we reach you?" }
+        ],
         fields: [
-          { label: "Full Name", type: "short_text" as const, required: true },
-          { label: "Email Address", type: "email" as const, required: true },
-          { label: "Phone Number", type: "phone" as const, required: false },
-          { label: "Additional Comments", type: "long_text" as const, required: false },
+          { pageId: "page-1", label: "Full Name", type: "short_text" as const, required: true, placeholder: "e.g. Priya Sharma", helpText: "Enter your legal name." },
+          { pageId: "page-2", label: "Email Address", type: "email" as const, required: true, placeholder: "e.g. priya@example.com", helpText: "We will send updates here." },
+          { pageId: "page-2", label: "Phone Number", type: "phone" as const, required: false, placeholder: "e.g. +919876543210", helpText: "Optional mobile or landline number." },
+          { pageId: "page-1", label: "Additional Comments", type: "long_text" as const, required: false, placeholder: "Type any other information...", helpText: "Any other details you want to share." },
         ],
       },
       {
@@ -33,10 +37,14 @@ const seedTemplates = async () => {
         category: "Feedback",
         theme: "ocean-breeze",
         isActive: true,
+        pages: [
+          { id: "page-1", order: 0, title: "Rating", description: "Rate your overall satisfaction." },
+          { id: "page-2", order: 1, title: "Review Detail", description: "Share your thoughts and recommendation." }
+        ],
         fields: [
-          { label: "Overall Rating (1-5)", type: "number" as const, required: true, min: 1, max: 5 },
-          { label: "What did you like most?", type: "long_text" as const, required: true },
-          { label: "Would you recommend us?", type: "dropdown" as const, required: true, options: ["Yes", "No", "Maybe"] },
+          { pageId: "page-1", label: "Overall Rating (1-5)", type: "number" as const, required: true, min: 1, max: 5, placeholder: "e.g. 5", helpText: "Rate from 1 (lowest) to 5 (highest)." },
+          { pageId: "page-2", label: "What did you like most?", type: "long_text" as const, required: true, placeholder: "Describe your favorite aspect...", helpText: "Be as detailed as you like." },
+          { pageId: "page-2", label: "Would you recommend us?", type: "dropdown" as const, required: true, options: ["Yes", "No", "Maybe"], placeholder: "Select option...", helpText: "Select if you would recommend us to others." },
         ],
       },
       {
@@ -44,12 +52,16 @@ const seedTemplates = async () => {
         category: "HR",
         theme: "professional-slate",
         isActive: true,
+        pages: [
+          { id: "page-1", order: 0, title: "Personal Details", description: "Basic contact details." },
+          { id: "page-2", order: 1, title: "Experience & Availability", description: "Work details and timeline." }
+        ],
         fields: [
-          { label: "Applicant Name", type: "short_text" as const, required: true },
-          { label: "Email", type: "email" as const, required: true },
-          { label: "Portfolio URL", type: "short_text" as const, required: false },
-          { label: "Years of Experience", type: "number" as const, required: true, min: 0 },
-          { label: "Expected Join Date", type: "date" as const, required: true },
+          { pageId: "page-1", label: "Applicant Name", type: "short_text" as const, required: true, placeholder: "e.g. Rohan Das", helpText: "Your legal full name." },
+          { pageId: "page-1", label: "Email", type: "email" as const, required: true, placeholder: "e.g. rohan.das@example.com", helpText: "For communication regarding your application." },
+          { pageId: "page-1", label: "Portfolio URL", type: "short_text" as const, required: false, placeholder: "e.g. https://myportfolio.dev", helpText: "Link to your portfolio or GitHub." },
+          { pageId: "page-2", label: "Years of Experience", type: "number" as const, required: true, min: 0, placeholder: "e.g. 3", helpText: "Number of full years of professional experience." },
+          { pageId: "page-2", label: "Expected Join Date", type: "date" as const, required: true, placeholder: "YYYY-MM-DD", helpText: "When are you available to start?" },
         ],
       },
       {
@@ -57,10 +69,14 @@ const seedTemplates = async () => {
         category: "Events",
         theme: "sunset-glow",
         isActive: true,
+        pages: [
+          { id: "page-1", order: 0, title: "Attendee Info", description: "Who is attending?" },
+          { id: "page-2", order: 1, title: "Dietary Preferences", description: "Let us know about food preferences." }
+        ],
         fields: [
-          { label: "Attendee Name", type: "short_text" as const, required: true },
-          { label: "Ticket Type", type: "multiple_choice" as const, required: true, options: ["VIP", "General Admission", "Student"] },
-          { label: "Dietary Restrictions", type: "checkbox" as const, required: false, options: ["Vegan", "Gluten-Free", "Nut-Free"] },
+          { pageId: "page-1", label: "Attendee Name", type: "short_text" as const, required: true, placeholder: "e.g. Amit Kumar", helpText: "Name to print on the badge." },
+          { pageId: "page-1", label: "Ticket Type", type: "multiple_choice" as const, required: true, options: ["VIP", "General Admission", "Student"], placeholder: "Select ticket...", helpText: "Select your ticket category." },
+          { pageId: "page-2", label: "Dietary Restrictions", type: "checkbox" as const, required: false, options: ["Vegan", "Gluten-Free", "Nut-Free"], placeholder: "Select restriction...", helpText: "Select all that apply." },
         ],
       },
       {
@@ -68,11 +84,15 @@ const seedTemplates = async () => {
         category: "Sales",
         theme: "forest-emerald",
         isActive: true,
+        pages: [
+          { id: "page-1", order: 0, title: "Item Selection", description: "What would you like to buy?" },
+          { id: "page-2", order: 1, title: "Delivery Details", description: "When and where should it go?" }
+        ],
         fields: [
-          { label: "Product Choice", type: "dropdown" as const, required: true, options: ["Product A", "Product B", "Product C"] },
-          { label: "Quantity", type: "number" as const, required: true, min: 1, max: 10 },
-          { label: "Delivery Date", type: "date" as const, required: true },
-          { label: "Delivery Notes", type: "long_text" as const, required: false },
+          { pageId: "page-1", label: "Product Choice", type: "dropdown" as const, required: true, options: ["Product A", "Product B", "Product C"], placeholder: "Select product...", helpText: "Choose the item you want to order." },
+          { pageId: "page-1", label: "Quantity", type: "number" as const, required: true, min: 1, max: 10, placeholder: "e.g. 1", helpText: "Specify quantity (1-10)." },
+          { pageId: "page-2", label: "Delivery Date", type: "date" as const, required: true, placeholder: "YYYY-MM-DD", helpText: "Select preferred delivery date." },
+          { pageId: "page-2", label: "Delivery Notes", type: "long_text" as const, required: false, placeholder: "Gate codes, directions, etc...", helpText: "Additional delivery instructions." },
         ],
       },
       {
