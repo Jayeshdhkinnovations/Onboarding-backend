@@ -90,6 +90,9 @@ export const useTemplate = async (req: Request, res: Response): Promise<void> =>
         type: raw.type,
         required: raw.required,
         deleted: raw.deleted ?? false,
+        pageId: raw.pageId,
+        placeholder: raw.placeholder,
+        helpText: raw.helpText,
         minLength: raw.minLength,
         maxLength: raw.maxLength,
         pattern: raw.pattern,
@@ -108,6 +111,7 @@ export const useTemplate = async (req: Request, res: Response): Promise<void> =>
       title: template.name,
       description: `Created from template: ${template.name}`,
       fields: formFields,
+      pages: template.pages && template.pages.length > 0 ? template.pages : undefined,
       status: "draft" as const, // Default to draft, or active as per project standard (Form default is draft/active, let's keep draft since "a duplicate always starts as a draft" in duplicate controller)
     };
 

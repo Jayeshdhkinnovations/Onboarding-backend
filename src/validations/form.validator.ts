@@ -36,6 +36,8 @@ const baseFieldSchema = z.object({
     .max(100, "Field label cannot exceed 100 characters"),
   required: z.boolean().default(false),
   deleted: z.boolean().default(false),
+  placeholder: z.string().trim().optional(),
+  helpText: z.string().trim().optional(),
   logicRules: z.array(logicRuleSchema).optional(),
 });
 

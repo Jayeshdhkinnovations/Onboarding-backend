@@ -41,6 +41,8 @@ export interface IFormField {
     | "file_upload";
   required: boolean;
   deleted?: boolean;
+  placeholder?: string;
+  helpText?: string;
 
   // validation settings for different field types
   minLength?: number;
@@ -131,6 +133,8 @@ export const FormFieldSchema = new Schema<IFormField>({
   },
   required: { type: Boolean, default: false },
   deleted: { type: Boolean, default: false },
+  placeholder: { type: String, default: "" },
+  helpText: { type: String, default: "" },
 
   // Validation parameters
   minLength: { type: Number },

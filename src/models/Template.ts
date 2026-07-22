@@ -5,6 +5,7 @@ export interface ITemplate extends Document {
   name: string;
   category: string;
   fields: IFormField[];
+  pages?: any[];
   theme: string;
   isActive: boolean;
 }
@@ -24,6 +25,10 @@ const TemplateSchema = new Schema<ITemplate>(
     fields: {
       type: [FormFieldSchema],
       required: true,
+      default: [],
+    },
+    pages: {
+      type: [Schema.Types.Mixed],
       default: [],
     },
     theme: {
