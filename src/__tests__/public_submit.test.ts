@@ -116,6 +116,64 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
     expect(dbSub?.answers.EmailField).toBe("test@example.com");
   });
 
+  it("should successfully submit with array format answers (Shape A)", async () => {
+    const formRecord = await Form.findById(formId);
+    const emailField = formRecord?.fields.find(f => f.label === "EmailField");
+    const numField = formRecord?.fields.find(f => f.label === "NumberField");
+
+    const answersPayload = {
+      answers: [
+        { fieldId: emailField?.fieldId, value: "array@example.com" },
+        { fieldId: numField?.fieldId, value: 18 }
+      ]
+    };
+
+    const res = await request(app)
+      .post(`/api/public/${slug}/submit`)
+      .field("data", JSON.stringify(answersPayload));
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+
+    const dbSub = await ResponseModel.findOne({ formId, "answers.EmailField": "array@example.com" });
+    expect(dbSub).not.toBeNull();
+  });
+
+  it("should successfully submit using JSON request body (repro case 7)", async () => {
+    const formRecord = await Form.findById(formId);
+    const emailField = formRecord?.fields.find(f => f.label === "EmailField");
+
+    const res = await request(app)
+      .post(`/api/public/${slug}/submit`)
+      .set("Content-Type", "application/json")
+      .send({
+        answers: [
+          { fieldId: emailField?.fieldId, value: "json-body@example.com" }
+        ]
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+
+    const dbSub = await ResponseModel.findOne({ formId, "answers.EmailField": "json-body@example.com" });
+    expect(dbSub).not.toBeNull();
+  });
+
+  it("should successfully submit using raw multipart form parameters (repro case 4)", async () => {
+    const formRecord = await Form.findById(formId);
+    const emailField = formRecord?.fields.find(f => f.label === "EmailField");
+
+    const res = await request(app)
+      .post(`/api/public/${slug}/submit`)
+      .field(emailField?.fieldId || "EmailField", "multipart-flat@example.com");
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+
+    const dbSub = await ResponseModel.findOne({ formId, "answers.EmailField": "multipart-flat@example.com" });
+    expect(dbSub).not.toBeNull();
+  });
+
   it("should return 404 for submissions to an unknown slug", async () => {
     const res = await request(app)
       .post("/api/public/unknown-slug-1234/submit")

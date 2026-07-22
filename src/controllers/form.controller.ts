@@ -597,6 +597,8 @@ export const getPublicFormBySlug = async (
         label: raw.label,
         type: raw.type,
         required: raw.required,
+        placeholder: raw.placeholder !== undefined ? raw.placeholder : "",
+        helpText: raw.helpText !== undefined ? raw.helpText : "",
       };
       if (raw.minLength !== undefined) cleanField.minLength = raw.minLength;
       if (raw.maxLength !== undefined) cleanField.maxLength = raw.maxLength;
@@ -707,11 +709,17 @@ export const submitPublicForm = async (
       return;
     }
 
+    // Retrieve the published form first to use its fields for answers normalization
+    const formDoc = await formService.getPublicFormBySlug(slug);
+    const form = formDoc.toObject();
+
     // Parse answers JSON
     let answers: Record<string, any> = {};
+    let parsed: any = null;
+
     if (data) {
       try {
-        answers = JSON.parse(data);
+        parsed = JSON.parse(data);
       } catch (e) {
         res.status(422).json({
           success: false,
@@ -720,6 +728,64 @@ export const submitPublicForm = async (
           error: { message: "Validation failed" }
         });
         return;
+      }
+    } else if (req.body && typeof req.body === "object") {
+      parsed = req.body;
+    }
+
+    if (parsed && typeof parsed === "object") {
+      if (Array.isArray(parsed.answers)) {
+        // Array of answer objects (reconciled frontend shape)
+        for (const ans of parsed.answers) {
+          if (ans && typeof ans === "object") {
+            const field = form.fields.find(
+              (f: any) =>
+                (f.fieldId && f.fieldId === ans.fieldId) ||
+                f.label === ans.fieldLabel ||
+                f.label === ans.label
+            );
+            if (field) {
+              if (field.fieldId) answers[field.fieldId] = ans.value;
+              answers[field.label] = ans.value;
+            } else {
+              if (ans.fieldId !== undefined) answers[ans.fieldId] = ans.value;
+              if (ans.fieldLabel !== undefined) answers[ans.fieldLabel] = ans.value;
+              if (ans.label !== undefined) answers[ans.label] = ans.value;
+            }
+          }
+        }
+      } else {
+        // Flat key-value map inside JSON / body object
+        for (const key of Object.keys(parsed)) {
+          if (key !== "data" && key !== "_hp") {
+            const field = form.fields.find(
+              (f: any) => (f.fieldId && f.fieldId === key) || f.label === key
+            );
+            if (field) {
+              if (field.fieldId) answers[field.fieldId] = parsed[key];
+              answers[field.label] = parsed[key];
+            } else {
+              answers[key] = parsed[key];
+            }
+          }
+        }
+      }
+    }
+
+    // Flat multipart keys directly in req.body (e.g. key=value form-data)
+    if (Object.keys(answers).length === 0 && req.body && typeof req.body === "object") {
+      for (const key of Object.keys(req.body)) {
+        if (key !== "data" && key !== "_hp") {
+          const field = form.fields.find(
+            (f: any) => (f.fieldId && f.fieldId === key) || f.label === key
+          );
+          if (field) {
+            if (field.fieldId) answers[field.fieldId] = req.body[key];
+            answers[field.label] = req.body[key];
+          } else {
+            answers[key] = req.body[key];
+          }
+        }
       }
     }
 
@@ -741,10 +807,6 @@ export const submitPublicForm = async (
         }
       }
     }
-
-    // Retrieve the published form
-    const formDoc = await formService.getPublicFormBySlug(slug);
-    const form = formDoc.toObject();
 
     // Map and validate files matching file_upload fields
     if (req.files && Array.isArray(req.files) && req.files.length > 0) {

@@ -49,7 +49,7 @@ describe("GET /api/public/:slug Integration Tests", () => {
         title: "Public Test Form",
         description: "This is a public test form",
         fields: [
-          { label: "Email", type: "email", required: true },
+          { label: "Email", type: "email", required: true, placeholder: "Enter email", helpText: "Must be a valid address" },
           { label: "Deleted Field", type: "short_text", required: false, deleted: true }
         ],
         settings: {
@@ -89,6 +89,8 @@ describe("GET /api/public/:slug Integration Tests", () => {
     expect(publicRes.body.fields.length).toBe(1);
     expect(publicRes.body.fields[0].label).toBe("Email");
     expect(publicRes.body.fields[0].deleted).toBeUndefined();
+    expect(publicRes.body.fields[0].placeholder).toBe("Enter email");
+    expect(publicRes.body.fields[0].helpText).toBe("Must be a valid address");
 
     // Assert internal fields are stripped
     expect(publicRes.body.workspaceId).toBeUndefined();
