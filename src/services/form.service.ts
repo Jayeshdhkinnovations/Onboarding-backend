@@ -624,6 +624,35 @@ export class FormService {
     return await this.formRepository.create(workspaceId, duplicateData as any);
   }
 
+  private async checkFormAvailability(form: IForm): Promise<void> {
+    if (form.status !== "published") {
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    // 1. Check closeDate
+    if (form.settings?.closeDate) {
+      const closeTime = new Date(form.settings.closeDate).getTime();
+      const now = new Date().getTime();
+      if (!isNaN(closeTime) && now > closeTime) {
+        const err = new Error("Form not found");
+        (err as any).statusCode = 404;
+        throw err;
+      }
+    }
+
+    // 2. Check responseLimit
+    if (form.settings?.responseLimitEnabled && form.settings.responseLimit !== undefined) {
+      const responseCount = await ResponseModel.countDocuments({ formId: form._id });
+      if (responseCount >= form.settings.responseLimit) {
+        const err = new Error("Form not found");
+        (err as any).statusCode = 404;
+        throw err;
+      }
+    }
+  }
+
   async getPublicFormBySlug(slug: string): Promise<IForm> {
     if (!slug || typeof slug !== "string") {
       const err = new Error("Form not found");
@@ -636,11 +665,7 @@ export class FormService {
       (err as any).statusCode = 404;
       throw err;
     }
-    if (form.status !== "published") {
-      const err = new Error("Form not found");
-      (err as any).statusCode = 404;
-      throw err;
-    }
+    await this.checkFormAvailability(form);
     return form;
   }
 }
