@@ -41,7 +41,7 @@ afterAll(async () => {
 });
 
 describe("Public Form closeDate & responseLimit Integration Tests", () => {
-  it("should return 404 on fetch and submit if closeDate has passed", async () => {
+  it("should return 404 on fetch and submit if closeDate has passed, and lazily flip status to closed", async () => {
     // 1. Create a form with closeDate in the past
     const createRes = await request(app)
       .post("/api/forms")
@@ -63,9 +63,17 @@ describe("Public Form closeDate & responseLimit Integration Tests", () => {
     expect(publishRes.status).toBe(200);
     const slug = publishRes.body.slug;
 
+    // Check that status starts as published
+    let formInDb = await Form.findById(formId);
+    expect(formInDb?.status).toBe("published");
+
     // 3. Try to fetch public schema -> should return 404
     const fetchRes = await request(app).get(`/api/public/${slug}`);
     expect(fetchRes.status).toBe(404);
+
+    // Verify that the status transitioned to closed
+    formInDb = await Form.findById(formId);
+    expect(formInDb?.status).toBe("closed");
 
     // 4. Try to submit -> should return 404
     const submitRes = await request(app)
@@ -109,7 +117,7 @@ describe("Public Form closeDate & responseLimit Integration Tests", () => {
     expect(submitRes.status).toBe(201);
   });
 
-  it("should return 404 on fetch and submit if responseLimit has been reached", async () => {
+  it("should return 404 on fetch and submit if responseLimit has been reached, and lazily flip status to closed", async () => {
     // 1. Create a form with responseLimit = 1 (responseLimitEnabled = true)
     const createRes = await request(app)
       .post("/api/forms")
@@ -136,9 +144,17 @@ describe("Public Form closeDate & responseLimit Integration Tests", () => {
       answers: { Email: "first@example.com" }
     });
 
+    // Check that status starts as published
+    let formInDb = await Form.findById(formId);
+    expect(formInDb?.status).toBe("published");
+
     // 4. Try to fetch public schema -> should return 404
     const fetchRes = await request(app).get(`/api/public/${slug}`);
     expect(fetchRes.status).toBe(404);
+
+    // Verify that the status transitioned to closed
+    formInDb = await Form.findById(formId);
+    expect(formInDb?.status).toBe("closed");
 
     // 5. Try to submit -> should return 404
     const submitRes = await request(app)

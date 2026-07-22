@@ -1,5 +1,5 @@
 import { FormRepository } from "../repositories/form.repository";
-import { IForm, IFormField } from "../models/Form";
+import Form, { IForm, IFormField } from "../models/Form";
 import ResponseModel from "../models/Response";
 import Upload from "../models/Upload";
 import { getUploadDir } from "../controllers/upload.controller";
@@ -625,31 +625,43 @@ export class FormService {
   }
 
   private async checkFormAvailability(form: IForm): Promise<void> {
+    if (form.status === "closed") {
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
+    }
     if (form.status !== "published") {
       const err = new Error("Form not found");
       (err as any).statusCode = 404;
       throw err;
     }
 
+    let shouldClose = false;
+
     // 1. Check closeDate
     if (form.settings?.closeDate) {
       const closeTime = new Date(form.settings.closeDate).getTime();
       const now = new Date().getTime();
       if (!isNaN(closeTime) && now > closeTime) {
-        const err = new Error("Form not found");
-        (err as any).statusCode = 404;
-        throw err;
+        shouldClose = true;
       }
     }
 
     // 2. Check responseLimit
-    if (form.settings?.responseLimitEnabled && form.settings.responseLimit !== undefined) {
+    if (!shouldClose && form.settings?.responseLimitEnabled && form.settings.responseLimit !== undefined) {
       const responseCount = await ResponseModel.countDocuments({ formId: form._id });
       if (responseCount >= form.settings.responseLimit) {
-        const err = new Error("Form not found");
-        (err as any).statusCode = 404;
-        throw err;
+        shouldClose = true;
       }
+    }
+
+    if (shouldClose) {
+      form.status = "closed";
+      await Form.updateOne({ _id: form._id }, { status: "closed" });
+
+      const err = new Error("Form not found");
+      (err as any).statusCode = 404;
+      throw err;
     }
   }
 
