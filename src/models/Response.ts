@@ -3,6 +3,8 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IResponse extends Document {
   formId: mongoose.Types.ObjectId;
   answers: Record<string, any>;
+  submittedAt?: Date;
+  ipHash?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,6 +20,14 @@ const ResponseSchema = new Schema<IResponse>(
     answers: {
       type: Schema.Types.Mixed,
       required: true,
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    ipHash: {
+      type: String,
+      index: true,
     },
   },
   { timestamps: true }

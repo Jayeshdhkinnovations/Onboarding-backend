@@ -114,7 +114,7 @@ describe("Public Form closeDate & responseLimit Integration Tests", () => {
       .send({
         answers: [{ fieldLabel: "Email", value: "test@example.com" }]
       });
-    expect(submitRes.status).toBe(201);
+    expect(submitRes.status).toBe(200);
   });
 
   it("should return 404 on fetch and submit if responseLimit has been reached, and lazily flip status to closed", async () => {

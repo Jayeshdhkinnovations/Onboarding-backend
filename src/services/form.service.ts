@@ -413,7 +413,7 @@ export class FormService {
     await this.formRepository.delete(formId, workspaceId);
   }
 
-  async submitForm(formId: string, answers: Record<string, any>) {
+  async submitForm(formId: string, answers: Record<string, any>, ipHash?: string) {
     const form = await this.formRepository.findById(formId);
     if (!form) {
       const err = new Error("Form not found");
@@ -585,6 +585,8 @@ export class FormService {
     return await ResponseModel.create({
       formId,
       answers,
+      submittedAt: new Date(),
+      ipHash,
     });
   }
 

@@ -1,0 +1,22 @@
+meta {
+  name: Submit Public Form - Response Limit
+  type: http
+  seq: 26
+}
+
+post {
+  url: {{base_url}}/api/public/{{published_slug}}/submit
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  data: {"EmailField": "limit@example.com"}
+  _hp: 
+}
+
+assert {
+  res.status: eq 404
+  res.body.success: eq false
+  res.body.message: eq Form not found
+}

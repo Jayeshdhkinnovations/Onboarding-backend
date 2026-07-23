@@ -106,7 +106,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
       .post(`/api/public/${slug}/submit`)
       .field("data", JSON.stringify(answers));
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.submission).toBeDefined();
 
@@ -132,7 +132,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
       .post(`/api/public/${slug}/submit`)
       .field("data", JSON.stringify(answersPayload));
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     const dbSub = await ResponseModel.findOne({ formId, "answers.EmailField": "array@example.com" });
@@ -152,7 +152,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
         ]
       });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     const dbSub = await ResponseModel.findOne({ formId, "answers.EmailField": "json-body@example.com" });
@@ -167,7 +167,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
       .post(`/api/public/${slug}/submit`)
       .field(emailField?.fieldId || "EmailField", "multipart-flat@example.com");
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     const dbSub = await ResponseModel.findOne({ formId, "answers.EmailField": "multipart-flat@example.com" });
@@ -191,7 +191,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
       .field("data", JSON.stringify(answers))
       .field("_hp", "bot-detected");
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     // Verify no response is written to database
@@ -272,7 +272,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
       .field("data", JSON.stringify(answers))
       .attach("FileField", mockFileContent, { filename: "test-upload.png", contentType: "image/png" });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     // Verify upload document was created with workspace owner as the owner
@@ -385,7 +385,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
     const resA = await request(app)
       .post(`/api/public/${condSlug}/submit`)
       .field("data", JSON.stringify({ EmailField: "hide@test.com" }));
-    expect(resA.status).toBe(201);
+    expect(resA.status).toBe(200);
     expect(resA.body.success).toBe(true);
 
     // Test case B: EmailField is "show@test.com". TextField is shown, so OMITTING it should FAIL (422)!

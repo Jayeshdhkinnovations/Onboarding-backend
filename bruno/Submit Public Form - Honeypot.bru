@@ -1,7 +1,7 @@
 meta {
-  name: Submit Public Form - With File
+  name: Submit Public Form - Honeypot
   type: http
-  seq: 23
+  seq: 24
 }
 
 post {
@@ -11,9 +11,8 @@ post {
 }
 
 body:multipart-form {
-  data: {"EmailField": "john@example.com", "NumberField": 15, "TextField": "hello"}
-  FileField: @file(package.json)
-  _hp: 
+  data: {"EmailField": "bot@example.com"}
+  _hp: bot-detected-value
 }
 
 assert {

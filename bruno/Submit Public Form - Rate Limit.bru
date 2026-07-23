@@ -1,0 +1,22 @@
+meta {
+  name: Submit Public Form - Rate Limit
+  type: http
+  seq: 25
+}
+
+post {
+  url: {{base_url}}/api/public/{{published_slug}}/submit
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  data: {"EmailField": "rate@example.com"}
+  _hp: 
+}
+
+assert {
+  res.status: eq 429
+  res.body.success: eq false
+  res.body.message: eq Too many requests. Please try again later.
+}

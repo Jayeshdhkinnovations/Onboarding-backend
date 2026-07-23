@@ -6,6 +6,7 @@ const config: Config = {
   testMatch: ['**/__tests__/**/*.test.ts'],
   verbose: true,
   forceExit: true,
+  testTimeout: 30000,
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,

@@ -4,9 +4,9 @@ import path from "path";
 import fs from "fs";
 import { getPublicFormBySlug, submitPublicForm } from "../controllers/form.controller";
 import { getUploadDir } from "../controllers/upload.controller";
+import { submitRateLimiter } from "../middleware/rateLimiter";
 
 const router = Router();
-
 // Multer Storage Configuration for Public Form Submissions
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -32,6 +32,6 @@ const uploadAny = multer({
 }).any();
 
 router.get("/:slug", getPublicFormBySlug);
-router.post("/:slug/submit", uploadAny, submitPublicForm);
+router.post("/:slug/submit", submitRateLimiter, uploadAny, submitPublicForm);
 
 export default router;

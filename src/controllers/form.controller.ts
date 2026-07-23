@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 import { FormService } from "../services/form.service";
 import { createFormSchema, patchFormSchema } from "../validations/form.validator";
+import mongoose from "mongoose";
 import Workspace from "../models/Workspace";
 import Upload from "../models/Upload";
 import path from "path";
@@ -699,16 +701,6 @@ export const submitPublicForm = async (
     const slug = req.params.slug as string;
     const { data, _hp } = req.body;
 
-    // Honeypot check for bots (silent discard)
-    if (_hp) {
-      submissionSuccess = true;
-      res.status(201).json({
-        success: true,
-        message: "Response submitted successfully",
-      });
-      return;
-    }
-
     // Retrieve the published form first to use its fields for answers normalization
     const formDoc = await formService.getPublicFormBySlug(slug);
     const form = formDoc.toObject();
@@ -787,6 +779,22 @@ export const submitPublicForm = async (
           }
         }
       }
+    }
+
+    // Honeypot check for bots (silent discard)
+    if (_hp) {
+      res.status(200).json({
+        success: true,
+        message: "Response submitted successfully",
+        submission: {
+          _id: new mongoose.Types.ObjectId().toString(),
+          formId: form._id,
+          answers: answers,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+      return;
     }
 
     // Enforce 100 MB absolute limit on all uploaded files
@@ -885,10 +893,15 @@ export const submitPublicForm = async (
       }
     }
 
+    // Calculate client IP hash
+    const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+    const ipStr = Array.isArray(ip) ? ip[0] : (typeof ip === "string" ? ip : "unknown");
+    const hashedIp = crypto.createHash("sha256").update(ipStr).digest("hex");
+
     // Call dynamic validation and persistence routine in formService
-    const submission = await formService.submitForm(form._id.toString(), answers);
+    const submission = await formService.submitForm(form._id.toString(), answers, hashedIp);
     submissionSuccess = true;
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       message: "Response submitted successfully",
       submission,
