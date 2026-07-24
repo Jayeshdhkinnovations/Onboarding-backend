@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/server.ts",
-    "build": "tsc",
+    "build": "tsc && node copyAssets.js",
     "start": "node dist/server.js",
     "test": "jest --runInBand --detectOpenHandles",
     "seed:templates": "ts-node src/scripts/seedTemplates.ts",

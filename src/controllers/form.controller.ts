@@ -901,10 +901,13 @@ export const submitPublicForm = async (
     // Call dynamic validation and persistence routine in formService
     const submission = await formService.submitForm(form._id.toString(), answers, hashedIp);
     submissionSuccess = true;
+    const submissionObj = submission.toObject();
+    delete (submissionObj as any).ipHash;
+
     res.status(200).json({
       success: true,
       message: "Response submitted successfully",
-      submission,
+      submission: submissionObj,
     });
   } catch (error) {
     next(error);

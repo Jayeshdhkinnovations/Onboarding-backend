@@ -580,4 +580,281 @@ describe("Form API Property-Based Testing", () => {
       fs.rmSync(testPbtUploadDir, { recursive: true, force: true });
     }
   });
+
+  // 7. Hidden fields are never persisted
+  it("Property: hidden fields are never persisted as required/answered", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom("hide-me", "other-value"),
+        async (triggerVal) => {
+          // Create a form with conditional logic
+          const formPayload = {
+            title: "PBT Hidden Fields Test",
+            fields: [
+              {
+                fieldId: "trigger-id",
+                label: "Trigger",
+                type: "short_text",
+                required: true,
+                logicRules: [
+                  { targetFieldId: "target-id", action: "hide", value: "hide-me" }
+                ]
+              },
+              {
+                fieldId: "target-id",
+                label: "Target",
+                type: "short_text",
+                required: false
+              }
+            ]
+          };
+
+          const createRes = await request(app)
+            .post("/api/forms")
+            .set("Authorization", `Bearer ${tokenA}`)
+            .send(formPayload);
+          expect(createRes.status).toBe(201);
+          const formId = createRes.body.form._id;
+
+          // Publish it so we can submit
+          const pubRes = await request(app)
+            .post(`/api/forms/${formId}/publish`)
+            .set("Authorization", `Bearer ${tokenA}`);
+          expect(pubRes.status).toBe(200);
+          const pubSlug = pubRes.body.slug;
+
+          if (triggerVal === "hide-me") {
+            // Target is hidden, so even if we submit Target, it should be stripped
+            const submitRes = await request(app)
+              .post(`/api/public/${pubSlug}/submit`)
+              .field("data", JSON.stringify({ Trigger: "hide-me", Target: "should-be-ignored" }));
+            expect(submitRes.status).toBe(200);
+
+            // Assert it's persisted but Target is stripped
+            const responseDoc = await ResponseModel.findOne({ formId });
+            expect(responseDoc).not.toBeNull();
+            expect(responseDoc?.answers.Trigger).toBe("hide-me");
+            expect(responseDoc?.answers.Target).toBeUndefined();
+            expect(responseDoc?.answers["target-id"]).toBeUndefined();
+          } else {
+            // Target is NOT hidden, so submitting Target should persist it
+            const submitRes = await request(app)
+              .post(`/api/public/${pubSlug}/submit`)
+              .field("data", JSON.stringify({ Trigger: "other-value", Target: "should-be-persisted" }));
+            expect(submitRes.status).toBe(200);
+
+            const responseDoc = await ResponseModel.findOne({ formId });
+            expect(responseDoc).not.toBeNull();
+            expect(responseDoc?.answers.Trigger).toBe("other-value");
+            expect(responseDoc?.answers.Target).toBe("should-be-persisted");
+          }
+
+          // Cleanup
+          await Form.findByIdAndDelete(formId);
+          await ResponseModel.deleteMany({ formId });
+        }
+      ),
+      { numRuns: 10 }
+    );
+  });
+
+  // 8. Honeypot never persists response documents
+  it("Property: honeypot-filled submissions never create a response document", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.string({ minLength: 1 }),
+        async (hpValue) => {
+          const formPayload = {
+            title: "PBT Honeypot Test",
+            fields: [
+              {
+                fieldId: "field-1",
+                label: "Email",
+                type: "email",
+                required: true,
+              }
+            ],
+            settings: {
+              honeypotEnabled: true
+            }
+          };
+
+          const createRes = await request(app)
+            .post("/api/forms")
+            .set("Authorization", `Bearer ${tokenA}`)
+            .send(formPayload);
+          expect(createRes.status).toBe(201);
+          const formId = createRes.body.form._id;
+
+          const pubRes = await request(app)
+            .post(`/api/forms/${formId}/publish`)
+            .set("Authorization", `Bearer ${tokenA}`);
+          expect(pubRes.status).toBe(200);
+          const pubSlug = pubRes.body.slug;
+
+          const submitRes = await request(app)
+            .post(`/api/public/${pubSlug}/submit`)
+            .field("data", JSON.stringify({ Email: "spam@bot.com" }))
+            .field("_hp", hpValue);
+
+          expect(submitRes.status).toBe(200);
+          expect(submitRes.body.success).toBe(true);
+
+          const responseDoc = await ResponseModel.findOne({ formId });
+          expect(responseDoc).toBeNull();
+
+          // Cleanup
+          await Form.findByIdAndDelete(formId);
+        }
+      ),
+      { numRuns: 10 }
+    );
+  });
+
+  // 9. Server-side validation matches frontend rules
+  it("Property: server-side validation rejects the same invalid inputs the frontend blocks", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom(
+          {
+            type: "email" as const,
+            invalidValue: "not-an-email",
+            expectedError: "valid email"
+          },
+          {
+            type: "number" as const,
+            invalidValue: 5,
+            min: 10,
+            expectedError: "at least 10"
+          },
+          {
+            type: "number" as const,
+            invalidValue: 25,
+            max: 20,
+            expectedError: "cannot exceed 20"
+          },
+          {
+            type: "short_text" as const,
+            invalidValue: "too-long-text",
+            maxLength: 5,
+            expectedError: "cannot exceed 5"
+          },
+          {
+            type: "date" as const,
+            invalidValue: "2025-12-31",
+            minDate: "2026-01-01",
+            expectedError: "cannot be earlier than"
+          }
+        ),
+        async (testCase) => {
+          const formPayload = {
+            title: "PBT Validation Test",
+            fields: [
+              {
+                fieldId: "test-field",
+                label: "TestField",
+                type: testCase.type,
+                required: true,
+                min: testCase.min,
+                max: testCase.max,
+                maxLength: testCase.maxLength,
+                minDate: testCase.minDate,
+              }
+            ]
+          };
+
+          const createRes = await request(app)
+            .post("/api/forms")
+            .set("Authorization", `Bearer ${tokenA}`)
+            .send(formPayload);
+          expect(createRes.status).toBe(201);
+          const formId = createRes.body.form._id;
+
+          const pubRes = await request(app)
+            .post(`/api/forms/${formId}/publish`)
+            .set("Authorization", `Bearer ${tokenA}`);
+          expect(pubRes.status).toBe(200);
+          const pubSlug = pubRes.body.slug;
+
+          const submitRes = await request(app)
+            .post(`/api/public/${pubSlug}/submit`)
+            .field("data", JSON.stringify({ TestField: testCase.invalidValue }));
+
+          expect(submitRes.status).toBe(422);
+          expect(submitRes.body.errors[0].message.toLowerCase()).toContain(testCase.expectedError.toLowerCase());
+
+          // Cleanup
+          await Form.findByIdAndDelete(formId);
+        }
+      ),
+      { numRuns: 10 }
+    );
+  });
+
+  // 10. Multi-page submission persists all answers
+  it("Property: a valid multi-page submission persists answers for every page", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.record({
+          valPage1: fc.string({ minLength: 1, maxLength: 10 }),
+          valPage2: fc.string({ minLength: 1, maxLength: 10 })
+        }),
+        async (values) => {
+          const formPayload = {
+            title: "PBT Multi-Page Test",
+            pages: [
+              { id: "page-1", order: 1, title: "Page 1" },
+              { id: "page-2", order: 2, title: "Page 2" }
+            ],
+            fields: [
+              {
+                fieldId: "field-p1",
+                label: "LabelP1",
+                type: "short_text",
+                pageId: "page-1",
+                required: true,
+              },
+              {
+                fieldId: "field-p2",
+                label: "LabelP2",
+                type: "short_text",
+                pageId: "page-2",
+                required: true,
+              }
+            ]
+          };
+
+          const createRes = await request(app)
+            .post("/api/forms")
+            .set("Authorization", `Bearer ${tokenA}`)
+            .send(formPayload);
+          expect(createRes.status).toBe(201);
+          const formId = createRes.body.form._id;
+
+          const pubRes = await request(app)
+            .post(`/api/forms/${formId}/publish`)
+            .set("Authorization", `Bearer ${tokenA}`);
+          expect(pubRes.status).toBe(200);
+          const pubSlug = pubRes.body.slug;
+
+          const submitRes = await request(app)
+            .post(`/api/public/${pubSlug}/submit`)
+            .field("data", JSON.stringify({ LabelP1: values.valPage1, LabelP2: values.valPage2 }));
+
+          expect(submitRes.status).toBe(200);
+          expect(submitRes.body.success).toBe(true);
+
+          const responseDoc = await ResponseModel.findOne({ formId });
+          expect(responseDoc).not.toBeNull();
+          expect(responseDoc?.answers.LabelP1).toBe(values.valPage1);
+          expect(responseDoc?.answers.LabelP2).toBe(values.valPage2);
+
+          // Cleanup
+          await Form.findByIdAndDelete(formId);
+          await ResponseModel.deleteMany({ formId });
+        }
+      ),
+      { numRuns: 10 }
+    );
+  });
 });

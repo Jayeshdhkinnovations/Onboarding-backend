@@ -1,0 +1,101 @@
+﻿[
+    {
+        "FreeMemoryBeforeMB":  105079,
+        "FreeMemoryAfterMB":  105109,
+        "Duration":  44.73,
+        "Timestamp":  "2026-07-20 16:29:35",
+        "TestsPassed":  94,
+        "RunIndex":  1,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  104665,
+        "FreeMemoryAfterMB":  104738,
+        "Duration":  41.37,
+        "Timestamp":  "2026-07-20 16:50:20",
+        "TestsPassed":  94,
+        "RunIndex":  2,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  103384,
+        "FreeMemoryAfterMB":  103370,
+        "Duration":  40.79,
+        "Timestamp":  "2026-07-20 17:11:01",
+        "TestsPassed":  94,
+        "RunIndex":  3,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  103403,
+        "FreeMemoryAfterMB":  103613,
+        "Duration":  44.22,
+        "Timestamp":  "2026-07-20 17:31:42",
+        "TestsPassed":  94,
+        "RunIndex":  4,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  103569,
+        "FreeMemoryAfterMB":  103656,
+        "Duration":  41.66,
+        "Timestamp":  "2026-07-20 17:52:27",
+        "TestsPassed":  94,
+        "RunIndex":  5,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  103898,
+        "FreeMemoryAfterMB":  103884,
+        "Duration":  39.11,
+        "Timestamp":  "2026-07-20 18:13:08",
+        "TestsPassed":  94,
+        "RunIndex":  6,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  103663,
+        "FreeMemoryAfterMB":  103807,
+        "Duration":  40.74,
+        "Timestamp":  "2026-07-20 18:33:48",
+        "TestsPassed":  94,
+        "RunIndex":  7,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  103817,
+        "FreeMemoryAfterMB":  104293,
+        "Duration":  42.78,
+        "Timestamp":  "2026-07-20 18:54:29",
+        "TestsPassed":  94,
+        "RunIndex":  8,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  105085,
+        "FreeMemoryAfterMB":  105078,
+        "Duration":  42.77,
+        "Timestamp":  "2026-07-20 19:15:12",
+        "TestsPassed":  94,
+        "RunIndex":  9,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  101939,
+        "FreeMemoryAfterMB":  102057,
+        "Duration":  42.79,
+        "Timestamp":  "2026-07-20 19:35:54",
+        "TestsPassed":  94,
+        "RunIndex":  10,
+        "Status":  "Passed"
+    },
+    {
+        "FreeMemoryBeforeMB":  101994,
+        "FreeMemoryAfterMB":  102013,
+        "Duration":  40.69,
+        "Timestamp":  "2026-07-20 19:56:37",
+        "TestsPassed":  94,
+        "RunIndex":  11,
+        "Status":  "Passed"
+    }
+]

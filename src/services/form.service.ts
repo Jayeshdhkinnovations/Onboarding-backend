@@ -582,6 +582,14 @@ export class FormService {
       throw new FormValidationError(validationErrors);
     }
 
+    // Strip hidden fields from being persisted
+    for (const field of form.fields) {
+      if (field.fieldId && hiddenFieldIds.has(field.fieldId)) {
+        delete answers[field.fieldId];
+        delete answers[field.label];
+      }
+    }
+
     return await ResponseModel.create({
       formId,
       answers,
