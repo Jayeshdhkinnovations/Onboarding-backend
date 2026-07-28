@@ -7,7 +7,7 @@ import { SystemLog } from "../models/SystemLog";
 
 export class SuperAdminService {
   async getPlatformStats() {
-    const activeAdmins = await User.countDocuments({ role: "admin", status: "active" });
+    const activeAdmins = await User.countDocuments({ role: "admin", status: { $ne: "suspended" } });
     const suspendedAdmins = await User.countDocuments({ role: "admin", status: "suspended" });
 
     const totalWorkspaces = await Workspace.countDocuments();
