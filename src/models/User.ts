@@ -3,9 +3,10 @@ export interface IUser extends Document {
   firebaseUid: string;
   fullName: string;
   email: string;
-  role: "admin";
+  role: "admin" | "super_admin";
   workspaceId: mongoose.Types.ObjectId;
   isActive: boolean;
+  status: "active" | "suspended";
 }
 const UserSchema = new Schema<IUser>(
   {
@@ -33,6 +34,7 @@ const UserSchema = new Schema<IUser>(
 
     role: {
       type: String,
+      enum: ["admin", "super_admin"],
       default: "admin",
     },
 
@@ -45,6 +47,12 @@ const UserSchema = new Schema<IUser>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+
+    status: {
+      type: String,
+      enum: ["active", "suspended"],
+      default: "active",
     },
   },
   {

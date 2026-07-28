@@ -2,7 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { protect } from "../middleware/auth.middleware";
+import { protect, blockSuspended } from "../middleware/auth.middleware";
 import { uploadFile, getFile, getUploadDir } from "../controllers/upload.controller";
 
 const router = Router();
@@ -35,7 +35,7 @@ const uploadAny = multer({
   },
 }).any();
 
-router.post("/", protect as any, (req: any, res: any, next: any) => {
+router.post("/", protect as any, blockSuspended as any, (req: any, res: any, next: any) => {
   uploadAny(req, res, (err: any) => {
     if (err) {
       if (err instanceof multer.MulterError) {

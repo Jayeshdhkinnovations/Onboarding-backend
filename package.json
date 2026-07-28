@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "test": "jest --runInBand --detectOpenHandles",
     "seed:templates": "ts-node src/scripts/seedTemplates.ts",
-    "seed:form": "ts-node src/scripts/seedFullForm.ts"
+    "seed:form": "ts-node src/scripts/seedFullForm.ts",
+    "seed:superadmin": "ts-node src/scripts/seedSuperAdmin.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

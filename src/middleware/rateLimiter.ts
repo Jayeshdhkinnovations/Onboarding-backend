@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
+import { SystemLog } from "../models/SystemLog";
 
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
@@ -34,6 +35,18 @@ export const submitRateLimiter = (req: Request, res: Response, next: NextFunctio
 
   record.count += 1;
   if (record.count > maxLimit) {
+    SystemLog.create({
+      level: "warn",
+      message: "Rate limit exceeded",
+      route: req.originalUrl,
+      statusCode: 429,
+      meta: {
+        type: "rate_limit",
+        ipHash: hashedIp,
+        slug: slug
+      }
+    }).catch(err => console.error("Error logging rate limit to SystemLog:", err));
+
     res.status(429).json({
       success: false,
       message: "Too many requests. Please try again later.",

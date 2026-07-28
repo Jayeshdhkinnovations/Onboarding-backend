@@ -1,0 +1,20 @@
+meta {
+  name: Get Superadmin Abuse
+  type: http
+  seq: 28
+}
+
+get {
+  url: {{base_url}}/api/superadmin/abuse
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.abuse: isDefined
+  res.body.abuse.topBlockedIps: isArray
+  res.body.abuse.topBlockedSlugs: isArray
+  res.body.abuse.honeypotDrops: isDefined
+}

@@ -12,6 +12,7 @@ import dashboardRoutes from "./routes/dashboard.routes";
 import uploadRoutes from "./routes/upload.routes";
 import templateRoutes from "./routes/template.routes";
 import publicRoutes from "./routes/public.routes";
+import superadminRoutes from "./routes/superadmin.routes";
 import { errorHandler } from "./middleware/error.middleware";
 
 // Continuous Deployment Test Comment
@@ -40,6 +41,7 @@ app.use("/api/public", publicRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/templates", templateRoutes);
+app.use("/api/superadmin", superadminRoutes);
 app.use("/api", healthRoutes);
 
 app.use(errorHandler as any);

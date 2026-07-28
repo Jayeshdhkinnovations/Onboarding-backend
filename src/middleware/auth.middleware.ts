@@ -71,3 +71,49 @@ export const protect = async (
     });
   }
 };
+
+export const requireSuperAdmin = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const user = req.user;
+  if (!user || user.role !== "super_admin") {
+    res.status(403).json({
+      success: false,
+      message: "Access Denied: Super Admin credentials required.",
+      error: { code: "FORBIDDEN_SUPER_ADMIN_REQUIRED", message: "FORBIDDEN_SUPER_ADMIN_REQUIRED" }
+    });
+    return;
+  }
+  next();
+};
+
+export const blockSuspended = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const user = req.user;
+
+  // Exempt super_admin
+  if (user && user.role === "super_admin") {
+    return next();
+  }
+
+  // Exempt /api/superadmin/*
+  if (req.originalUrl && req.originalUrl.startsWith("/api/superadmin")) {
+    return next();
+  }
+
+  if (user && user.status === "suspended") {
+    res.status(403).json({
+      success: false,
+      message: "Your account has been suspended. Please contact support.",
+      error: { code: "ACCOUNT_SUSPENDED", message: "ACCOUNT_SUSPENDED" }
+    });
+    return;
+  }
+  next();
+};
+

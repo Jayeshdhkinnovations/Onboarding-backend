@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { FormService } from "../services/form.service";
 import { createFormSchema, patchFormSchema } from "../validations/form.validator";
 import mongoose from "mongoose";
+import { SystemLog } from "../models/SystemLog";
 import Workspace from "../models/Workspace";
 import Upload from "../models/Upload";
 import path from "path";
@@ -783,6 +784,22 @@ export const submitPublicForm = async (
 
     // Honeypot check for bots (silent discard)
     if (_hp) {
+      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      const ipStr = Array.isArray(ip) ? ip[0] : (typeof ip === "string" ? ip : "unknown");
+      const hashedIp = crypto.createHash("sha256").update(ipStr).digest("hex");
+
+      SystemLog.create({
+        level: "warn",
+        message: "Honeypot silent drop triggered",
+        route: req.originalUrl,
+        statusCode: 200,
+        meta: {
+          type: "honeypot_drop",
+          ipHash: hashedIp,
+          slug: form.publishedSlug || form.slug
+        }
+      }).catch(err => console.error("Error logging honeypot drop to SystemLog:", err));
+
       res.status(200).json({
         success: true,
         message: "Response submitted successfully",

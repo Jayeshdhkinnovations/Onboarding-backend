@@ -12,21 +12,21 @@ import {
   publishForm,
   closeForm,
 } from "../controllers/form.controller";
-import { protect } from "../middleware/auth.middleware";
+import { protect, blockSuspended } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.post("/", protect as any, createForm);
-router.get("/", protect as any, listForms);
-router.get("/:formId", protect as any, getForm);
-router.put("/:formId", protect as any, updateForm);
-router.patch("/:formId", protect as any, patchForm);
-router.delete("/:formId", protect as any, deleteForm);
-router.post("/:formId/duplicate", protect as any, duplicateForm);
-router.post("/:formId/publish", protect as any, publishForm);
-router.post("/:formId/close", protect as any, closeForm);
+router.post("/", protect as any, blockSuspended as any, createForm);
+router.get("/", protect as any, blockSuspended as any, listForms);
+router.get("/:formId", protect as any, blockSuspended as any, getForm);
+router.put("/:formId", protect as any, blockSuspended as any, updateForm);
+router.patch("/:formId", protect as any, blockSuspended as any, patchForm);
+router.delete("/:formId", protect as any, blockSuspended as any, deleteForm);
+router.post("/:formId/duplicate", protect as any, blockSuspended as any, duplicateForm);
+router.post("/:formId/publish", protect as any, blockSuspended as any, publishForm);
+router.post("/:formId/close", protect as any, blockSuspended as any, closeForm);
 
 router.post("/:formId/submissions", submitForm);
-router.get("/:formId/submissions", protect as any, getSubmissions);
+router.get("/:formId/submissions", protect as any, blockSuspended as any, getSubmissions);
 
 export default router;
