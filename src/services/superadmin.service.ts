@@ -12,6 +12,7 @@ export class SuperAdminService {
 
     const totalWorkspaces = await Workspace.countDocuments();
     const totalForms = await Form.countDocuments();
+    const publishedForms = await Form.countDocuments({ status: "published" });
     const totalResponses = await ResponseModel.countDocuments();
 
     // Cumulative storage used in bytes
@@ -29,7 +30,7 @@ export class SuperAdminService {
     // Recent signups (last 10 admins)
     const lastAdmins = await User.find({ role: "admin" })
       .sort({ createdAt: -1 })
-      .limit(10)
+      .limit(50)
       .populate("workspaceId");
 
     const recentSignups = lastAdmins.map((user: any) => ({
@@ -47,6 +48,7 @@ export class SuperAdminService {
         },
         totalWorkspaces,
         totalForms,
+        publishedForms,
         totalResponses,
         totalStorageUsed,
         responsesLast24h,

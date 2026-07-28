@@ -132,6 +132,7 @@ describe("Super Admin Stats & Abuse Endpoints Integration Tests", () => {
       expect(res.body.stats.totalAdmins.suspended).toBe(1);
       expect(res.body.stats.totalWorkspaces).toBe(2);
       expect(res.body.stats.totalForms).toBe(1);
+      expect(res.body.stats.publishedForms).toBe(1);
       expect(res.body.stats.totalResponses).toBe(1);
       expect(res.body.stats.totalStorageUsed).toBe(2048);
       expect(res.body.stats.responsesLast24h).toBe(1);
