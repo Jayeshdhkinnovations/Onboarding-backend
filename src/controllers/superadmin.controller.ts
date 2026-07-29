@@ -27,7 +27,20 @@ export const getAbuse = async (req: Request, res: Response, next: NextFunction):
 
 export const getLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    res.status(501).json({ message: "Not Implemented" });
+    const { level, from, to, route, search, page, limit } = req.query;
+    const logsData = await superAdminService.getLogs({
+      level: level ? String(level) : undefined,
+      from: from ? String(from) : undefined,
+      to: to ? String(to) : undefined,
+      route: route ? String(route) : undefined,
+      search: search ? String(search) : undefined,
+      page: page ? parseInt(String(page), 10) : undefined,
+      limit: limit ? parseInt(String(limit), 10) : undefined,
+    });
+    res.status(200).json({
+      success: true,
+      ...logsData,
+    });
   } catch (error) {
     next(error);
   }

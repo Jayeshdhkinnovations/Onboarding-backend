@@ -173,4 +173,141 @@ describe("Super Admin Stats & Abuse Endpoints Integration Tests", () => {
       expect(res.body.abuse.topBlockedSlugs[0].hits).toBe(1);
     });
   });
+
+  describe("GET /api/superadmin/logs", () => {
+    beforeAll(async () => {
+      // Clear previous logs
+      await SystemLog.deleteMany({});
+
+      // Create test logs
+      await SystemLog.create({
+        level: "info",
+        message: "Server started",
+        route: "/api/init",
+        statusCode: 200,
+        meta: { detail: "info-detail" }
+      });
+
+      await SystemLog.create({
+        level: "warn",
+        message: "High memory warning",
+        route: "/api/forms",
+        statusCode: 200,
+        meta: { usage: "85%" }
+      });
+
+      await SystemLog.create({
+        level: "error",
+        message: "Database connection failed",
+        route: "/api/db-test",
+        statusCode: 500,
+        meta: { connectionString: "mongodb://xyz" },
+        stack: "Error: DB timeout\n    at Object.connect (test.ts:1:1)"
+      });
+    });
+
+    it("should reject normal admins", async () => {
+      const res = await request(app)
+        .get("/api/superadmin/logs")
+        .set("Authorization", `Bearer ${normalAdminToken}`);
+      
+      expect(res.status).toBe(403);
+    });
+
+    it("should return paginated logs sorted by timestamp descending", async () => {
+      const res = await request(app)
+        .get("/api/superadmin/logs")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.logs).toBeInstanceOf(Array);
+      expect(res.body.logs.length).toBe(3);
+      
+      // Sorted by createdAt descending
+      expect(res.body.logs[0].level).toBe("error");
+      expect(res.body.logs[1].level).toBe("warn");
+      expect(res.body.logs[2].level).toBe("info");
+
+      // Pagination checks
+      expect(res.body.pagination.total).toBe(3);
+      expect(res.body.pagination.page).toBe(1);
+      expect(res.body.pagination.limit).toBe(20);
+      expect(res.body.pagination.pages).toBe(1);
+    });
+
+    it("should clamp limit parameter to a maximum of 100", async () => {
+      const res = await request(app)
+        .get("/api/superadmin/logs?limit=250")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.pagination.limit).toBe(100);
+    });
+
+    it("should apply filters correctly (level, route, search)", async () => {
+      // 1. Level filter
+      let res = await request(app)
+        .get("/api/superadmin/logs?level=warn")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+      expect(res.body.logs).toHaveLength(1);
+      expect(res.body.logs[0].level).toBe("warn");
+
+      // 2. Route filter
+      res = await request(app)
+        .get("/api/superadmin/logs?route=db-test")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+      expect(res.body.logs).toHaveLength(1);
+      expect(res.body.logs[0].level).toBe("error");
+
+      // 3. Search filter
+      res = await request(app)
+        .get("/api/superadmin/logs?search=memory")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+      expect(res.body.logs).toHaveLength(1);
+      expect(res.body.logs[0].level).toBe("warn");
+    });
+
+    it("should include full meta only on error-level logs", async () => {
+      const res = await request(app)
+        .get("/api/superadmin/logs")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      const errorLog = res.body.logs.find((log: any) => log.level === "error");
+      const infoLog = res.body.logs.find((log: any) => log.level === "info");
+
+      expect(errorLog.meta).toBeDefined();
+      expect(errorLog.meta.connectionString).toBe("mongodb://xyz");
+
+      // Non-error level log metadata should be stripped
+      expect(infoLog.meta).toBeUndefined();
+    });
+
+    it("should include stack trace in non-production environments", async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "development";
+      
+      const res = await request(app)
+        .get("/api/superadmin/logs?level=error")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.body.logs[0].stack).toBeDefined();
+      expect(res.body.logs[0].stack).toContain("test.ts:1:1");
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it("should strip stack trace in production environment", async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "production";
+
+      const res = await request(app)
+        .get("/api/superadmin/logs?level=error")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.body.logs[0].stack).toBeUndefined();
+
+      process.env.NODE_ENV = originalEnv;
+    });
+  });
 });

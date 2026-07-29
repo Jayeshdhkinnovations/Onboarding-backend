@@ -1,0 +1,20 @@
+meta {
+  name: Get Superadmin Logs - Paginated
+  type: http
+  seq: 31
+}
+
+get {
+  url: {{base_url}}/api/superadmin/logs?limit=5&page=1
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.logs: isArray
+  res.body.pagination: isDefined
+  res.body.pagination.limit: eq 5
+  res.body.pagination.page: eq 1
+}

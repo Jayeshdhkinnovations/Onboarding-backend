@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import mongoose from "mongoose";
+import { Logger } from "../utils/logger";
 
 export const errorHandler = (
   err: any,
@@ -8,7 +9,12 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  console.error("Global Error Interceptor:", err);
+  Logger.error("Global Error Interceptor", err, {
+    headers: req.headers,
+    query: req.query,
+    body: req.body,
+    ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
+  }, req.originalUrl, err.statusCode || 500);
 
   // Cast Error (invalid ObjectId)
   if (err instanceof mongoose.Error.CastError) {

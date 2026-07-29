@@ -124,6 +124,80 @@ export class SuperAdminService {
       },
     };
   }
+
+  async getLogs(filters: {
+    level?: string;
+    from?: string;
+    to?: string;
+    route?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query: any = {};
+
+    if (filters.level) {
+      query.level = filters.level;
+    }
+
+    if (filters.route) {
+      query.route = { $regex: filters.route, $options: "i" };
+    }
+
+    if (filters.search) {
+      query.message = { $regex: filters.search, $options: "i" };
+    }
+
+    if (filters.from || filters.to) {
+      query.createdAt = {};
+      if (filters.from) {
+        query.createdAt.$gte = new Date(filters.from);
+      }
+      if (filters.to) {
+        query.createdAt.$lte = new Date(filters.to);
+      }
+    }
+
+    let page = filters.page || 1;
+    let limit = filters.limit || 20;
+
+    // Clamp limit to avoid unbounded queries
+    if (limit > 100) limit = 100;
+    if (limit < 1) limit = 20;
+    if (page < 1) page = 1;
+
+    const skip = (page - 1) * limit;
+
+    const total = await SystemLog.countDocuments(query);
+    const logs = await SystemLog.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const isProduction = process.env.NODE_ENV === "production";
+    const sanitizedLogs = logs.map((log) => {
+      const logObj = log.toObject();
+      if (logObj.level !== "error") {
+        delete logObj.meta;
+      }
+      if (isProduction) {
+        delete logObj.stack;
+      }
+      return logObj;
+    });
+
+    const pages = Math.ceil(total / limit);
+
+    return {
+      logs: sanitizedLogs,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages,
+      },
+    };
+  }
 }
 
 export const superAdminService = new SuperAdminService();

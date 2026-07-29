@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import Form from "../models/Form";
 import User from "../models/User";
+import { nanoid } from "nanoid";
 
 dotenv.config();
 
@@ -14,23 +15,9 @@ const seedProjectPitchForm = async () => {
     await mongoose.connect(mongoUri);
     console.log("✅ Connected to MongoDB for seeding project pitch form");
 
-    // 1. Find user with email piyush270205@gmail.com
-    const email = "piyush270205@gmail.com";
-    const user = await User.findOne({ email });
-    if (!user) {
-      console.error(`❌ User with email ${email} not found in database!`);
-      process.exit(1);
-    }
-    console.log(`👤 Found user: ${user.fullName} (${user.email})`);
+    const emails = ["piyush270205@gmail.com", "deepaknangalia@gmail.com"];
 
-    const workspaceId = user.workspaceId;
-    if (!workspaceId) {
-      console.error(`❌ User ${email} does not have an associated workspaceId!`);
-      process.exit(1);
-    }
-    console.log(`📁 Using workspaceId: ${workspaceId}`);
-
-    // 2. Read seeds.json
+    // Read seeds.json template
     const seedsPath = path.join(__dirname, "../../seeds.json");
     if (!fs.existsSync(seedsPath)) {
       console.error(`❌ Seeds file not found at ${seedsPath}`);
@@ -40,38 +27,75 @@ const seedProjectPitchForm = async () => {
     const rawData = fs.readFileSync(seedsPath, "utf-8");
     const formData = JSON.parse(rawData);
 
-    // 3. Check if form already exists and delete to avoid duplicate slug issues
-    const existingForm = await Form.findOne({ 
-      workspaceId, 
-      title: formData.title 
-    });
-    if (existingForm) {
-      console.log("ℹ️ Form already exists in this workspace. Deleting it first...");
-      await Form.deleteOne({ _id: existingForm._id });
+    for (const email of emails) {
+      console.log(`\n--------------------------------------------------`);
+      console.log(`👤 Processing email: ${email}`);
+      
+      const user = await User.findOne({ email });
+      if (!user) {
+        console.warn(`⚠️ User with email ${email} not found in database. Skipping.`);
+        continue;
+      }
+      console.log(`👤 Found user: ${user.fullName} (${user.email})`);
+
+      const workspaceId = user.workspaceId;
+      if (!workspaceId) {
+        console.warn(`⚠️ User ${email} does not have an associated workspaceId. Skipping.`);
+        continue;
+      }
+      console.log(`📁 Using workspaceId: ${workspaceId}`);
+
+      // Find the existing form to preserve its slug and publishedSlug
+      const existingForm = await Form.findOne({ 
+        workspaceId, 
+        title: formData.title 
+      });
+
+      let targetSlug: string = "";
+      let targetPublishedSlug: string = "";
+
+      if (existingForm) {
+        targetSlug = existingForm.slug || "";
+        targetPublishedSlug = existingForm.publishedSlug || existingForm.slug || "";
+        console.log(`ℹ   Existing form found. Preserving Slug: "${targetSlug}"`);
+        console.log("ℹ   Deleting the old form version first...");
+        await Form.deleteOne({ _id: existingForm._id });
+      } else {
+        // Fallback if form doesn't exist yet
+        // Generate a new slug, checking if 'to-pitch-a-project' is already taken
+        const slugIsTaken = await Form.findOne({ slug: "to-pitch-a-project" });
+        if (slugIsTaken) {
+          targetSlug = `to-pitch-a-project-${nanoid(4)}`;
+        } else {
+          targetSlug = "to-pitch-a-project";
+        }
+        targetPublishedSlug = targetSlug;
+        console.log(`ℹ️ No existing form found. Generated new unique Slug: "${targetSlug}"`);
+      }
+
+      // Create the Form
+      const form = await Form.create({
+        title: formData.title,
+        description: formData.description,
+        workspaceId,
+        status: formData.status,
+        slug: targetSlug,
+        publishedSlug: targetPublishedSlug,
+        publishedAt: new Date(),
+        fields: formData.fields,
+        pages: formData.pages,
+        settings: formData.settings,
+        schemaVersion: 1
+      });
+
+      console.log(`🎉 Successfully seeded form: "${form.title}"!`);
+      console.log(`🔗 Slug: ${form.slug}`);
+      console.log(`📂 ID: ${form._id}`);
     }
-
-    // 4. Create the Form
-    const form = await Form.create({
-      title: formData.title,
-      description: formData.description,
-      workspaceId,
-      status: formData.status,
-      slug: "to-pitch-a-project",
-      publishedSlug: "to-pitch-a-project",
-      publishedAt: new Date(),
-      fields: formData.fields,
-      pages: formData.pages,
-      settings: formData.settings,
-      schemaVersion: 1
-    });
-
-    console.log(`\n🎉 Successfully seeded form: "${form.title}"!`);
-    console.log(`🔗 Slug: ${form.slug}`);
-    console.log(`📂 ID: ${form._id}`);
     
     process.exit(0);
   } catch (error) {
-    console.error("❌ Error seeding project pitch form:", error);
+    console.error("❌ Error seeding project pitch forms:", error);
     process.exit(1);
   }
 };
