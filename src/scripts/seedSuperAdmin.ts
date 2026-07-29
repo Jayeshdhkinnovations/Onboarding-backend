@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import User from "../models/User";
 import Workspace from "../models/Workspace";
 import { auth } from "../config/firebase";
+import { SystemLog } from "../models/SystemLog";
 
 dotenv.config();
 
@@ -79,6 +80,77 @@ const seedSuperAdmin = async () => {
         await user.save();
         console.log(`📁 Created workspace for Super Admin: ${email}`);
       }
+    }
+
+    // Seed mock system logs if the collection is empty
+    const logCount = await SystemLog.countDocuments();
+    if (logCount === 0) {
+      console.log("📝 Seeding mock system logs for the logs viewer...");
+      const mockLogs = [
+        {
+          level: "info",
+          message: "Database connected successfully",
+          route: "system",
+          statusCode: 200,
+          createdAt: new Date(Date.now() - 4 * 3600000),
+        },
+        {
+          level: "info",
+          message: "Firebase Admin SDK initialized",
+          route: "system",
+          statusCode: 200,
+          createdAt: new Date(Date.now() - 3.5 * 3600000),
+        },
+        {
+          level: "info",
+          message: "App started on port 5000",
+          route: "system",
+          statusCode: 200,
+          createdAt: new Date(Date.now() - 3 * 3600000),
+        },
+        {
+          level: "warn",
+          message: "Rate limit threshold reached for IP: 7f9208a0db1490ae",
+          route: "/api/public/job-application/submit",
+          statusCode: 429,
+          meta: { type: "rate_limit", ipHash: "7f9208a0db1490ae", slug: "job-application" },
+          createdAt: new Date(Date.now() - 2.5 * 3600000),
+        },
+        {
+          level: "warn",
+          message: "Honeypot silent drop triggered",
+          route: "/api/public/feedback-form/submit",
+          statusCode: 200,
+          meta: { type: "honeypot_drop", ipHash: "bf92e8a0db1490ce", slug: "feedback-form" },
+          createdAt: new Date(Date.now() - 2 * 3600000),
+        },
+        {
+          level: "error",
+          message: "Failed to upload file: Disk full or write permission denied",
+          route: "/api/upload",
+          statusCode: 500,
+          meta: { path: "uploads/resume.pdf", errorDetails: "ENOSPC: no space left on device" },
+          stack: "Error: ENOSPC: no space left on device\n    at Object.writeSync (fs.js:570:3)\n    at writeFileSync (fs.js:1455:21)",
+          createdAt: new Date(Date.now() - 1.5 * 3600000),
+        },
+        {
+          level: "info",
+          message: "Template loaded: feedback_form",
+          route: "/api/templates",
+          statusCode: 200,
+          createdAt: new Date(Date.now() - 1 * 3600000),
+        },
+        {
+          level: "error",
+          message: "Validation failed: Required field 'email' is missing",
+          route: "/api/public/contact-us/submit",
+          statusCode: 422,
+          meta: { errors: [{ field: "email", message: "Field 'email' is required." }] },
+          createdAt: new Date(Date.now() - 0.5 * 3600000),
+        },
+      ];
+      await SystemLog.insertMany(mockLogs);
+      console.log("✅ Seeded 8 mock system logs successfully!");
     }
 
     console.log("✅ Super Admin seeding completed successfully");
