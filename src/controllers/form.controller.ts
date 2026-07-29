@@ -588,8 +588,8 @@ export const getPublicFormBySlug = async (
     const formDoc = await formService.getPublicFormBySlug(slug);
     const form = formDoc.toObject();
 
-    // Set cache headers compatible with frontend revalidate: 60 (ISR friendly)
-    res.set("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=60");
+    // Set cache headers to prevent caching so updates are instantly reflected
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
 
     // Strip internal properties (workspaceId, preview slug, honeypot settings) and soft-deleted fields
     const fields = (form.fields || []).filter((f: any) => !f.deleted);

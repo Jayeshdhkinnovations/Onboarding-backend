@@ -82,8 +82,7 @@ describe("GET /api/public/:slug Integration Tests", () => {
     expect(publicRes.body.publishedAt).toBeDefined();
 
     // Assert cache control header
-    expect(publicRes.headers["cache-control"]).toContain("public");
-    expect(publicRes.headers["cache-control"]).toContain("max-age=60");
+    expect(publicRes.headers["cache-control"]).toContain("no-store");
 
     // Assert soft-deleted field is stripped
     expect(publicRes.body.fields.length).toBe(1);
