@@ -262,7 +262,7 @@ export class SuperAdminService {
     };
   }
 
-  async getAdmins(filters: { page?: number; limit?: number }) {
+  async getAdmins(filters: { page?: number; limit?: number; search?: string; status?: string }) {
     let page = filters.page || 1;
     let limit = filters.limit || 20;
 
@@ -272,8 +272,19 @@ export class SuperAdminService {
 
     const skip = (page - 1) * limit;
 
-    const total = await User.countDocuments({ role: "admin" });
-    const admins = await User.find({ role: "admin" })
+    const query: any = { role: "admin" };
+    if (filters.status) {
+      query.status = filters.status;
+    }
+    if (filters.search) {
+      query.$or = [
+        { fullName: { $regex: filters.search, $options: "i" } },
+        { email: { $regex: filters.search, $options: "i" } },
+      ];
+    }
+
+    const total = await User.countDocuments(query);
+    const admins = await User.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -343,17 +354,31 @@ export class SuperAdminService {
     const storageUsed = storageResult[0]?.total || 0;
 
     return {
-      admin: {
+      profile: {
         id: admin._id.toString(),
         name: admin.fullName,
         email: admin.email,
-        workspaceName: ws?.name || "No Workspace",
+        status: admin.status || "active",
+        createdAt: (admin as any).createdAt,
+      },
+      workspace: ws
+        ? {
+            id: ws._id.toString(),
+            name: ws.name,
+          }
+        : null,
+      usage: {
         formCount,
         responseCount,
         storageUsed,
-        lastLogin: (admin as any).updatedAt || (admin as any).createdAt,
-        status: admin.status || "active",
       },
+      loginHistory: [
+        {
+          timestamp: (admin as any).updatedAt || (admin as any).createdAt,
+          ip: "unknown",
+          userAgent: "unknown",
+        },
+      ],
     };
   }
 

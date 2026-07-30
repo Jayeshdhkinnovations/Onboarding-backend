@@ -374,7 +374,8 @@ describe("Super Admin Stats & Abuse Endpoints Integration Tests", () => {
       expect(ws?.name).toBe("Cascade Consulting");
     });
 
-    it("should list admins with correct form/response/storage count telemetry", async () => {
+    it("should list admins with correct form/response/storage count telemetry and support search + status filters", async () => {
+      // 1. Fetch normal list
       const res = await request(app)
         .get("/api/superadmin/admins")
         .set("Authorization", `Bearer ${superAdminToken}`);
@@ -392,17 +393,90 @@ describe("Super Admin Stats & Abuse Endpoints Integration Tests", () => {
       expect(target.formCount).toBe(0);
       expect(target.responseCount).toBe(0);
       expect(target.storageUsed).toBe(0);
+
+      // 2. Test search filter (match)
+      const resSearchMatch = await request(app)
+        .get("/api/superadmin/admins?search=john")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+      expect(resSearchMatch.body.admins.some((a: any) => a.id === testAdminId)).toBe(true);
+
+      // 3. Test search filter (no match)
+      const resSearchNoMatch = await request(app)
+        .get("/api/superadmin/admins?search=xyznonexistent")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+      expect(resSearchNoMatch.body.admins.some((a: any) => a.id === testAdminId)).toBe(false);
+
+      // 4. Test status filter (match active)
+      const resStatusActive = await request(app)
+        .get("/api/superadmin/admins?status=active")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+      expect(resStatusActive.body.admins.some((a: any) => a.id === testAdminId)).toBe(true);
+
+      // 5. Test status filter (no match suspended)
+      const resStatusSuspended = await request(app)
+        .get("/api/superadmin/admins?status=suspended")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+      expect(resStatusSuspended.body.admins.some((a: any) => a.id === testAdminId)).toBe(false);
     });
 
-    it("should fetch admin detail", async () => {
+    it("should fetch admin detail with profile, workspace, usage, and loginHistory", async () => {
       const res = await request(app)
         .get(`/api/superadmin/admins/${testAdminId}`)
         .set("Authorization", `Bearer ${superAdminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.admin.id).toBe(testAdminId);
-      expect(res.body.admin.name).toBe("John Cascade");
+      expect(res.body.profile).toBeDefined();
+      expect(res.body.profile.id).toBe(testAdminId);
+      expect(res.body.profile.name).toBe("John Cascade");
+      expect(res.body.profile.email).toBe(testAdminEmail);
+      expect(res.body.profile.status).toBe("active");
+      
+      expect(res.body.workspace).toBeDefined();
+      expect(res.body.workspace.name).toBe("Cascade Consulting");
+      
+      expect(res.body.usage).toBeDefined();
+      expect(res.body.usage.formCount).toBe(0);
+      expect(res.body.usage.responseCount).toBe(0);
+      expect(res.body.usage.storageUsed).toBe(0);
+
+      expect(res.body.loginHistory).toBeDefined();
+      expect(Array.isArray(res.body.loginHistory)).toBe(true);
+      expect(res.body.loginHistory.length).toBe(1);
+    });
+
+    it("should reject malformed create requests with 422 and field errors", async () => {
+      const res = await request(app)
+        .post("/api/superadmin/admins")
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .send({
+          name: "Jo", // too short
+          email: "not-an-email", // invalid email
+          workspaceName: "", // missing
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors).toBeDefined();
+      expect(res.body.errors.some((e: any) => e.field === "name")).toBe(true);
+      expect(res.body.errors.some((e: any) => e.field === "email")).toBe(true);
+      expect(res.body.errors.some((e: any) => e.field === "workspaceName")).toBe(true);
+    });
+
+    it("should reject malformed edit requests with 422 and field errors", async () => {
+      const res = await request(app)
+        .patch(`/api/superadmin/admins/${testAdminId}`)
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .send({
+          name: "Jo", // too short
+          status: "invalid-status", // bad enum
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors).toBeDefined();
+      expect(res.body.errors.some((e: any) => e.field === "name")).toBe(true);
+      expect(res.body.errors.some((e: any) => e.field === "status")).toBe(true);
     });
 
     it("should update admin name, workspace, and status", async () => {

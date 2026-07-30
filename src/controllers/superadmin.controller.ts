@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
+import { ZodError } from "zod";
 import { superAdminService } from "../services/superadmin.service";
+import { createAdminSchema, updateAdminSchema } from "../validations/superadmin.validator";
 
 export const getStats = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -48,10 +50,12 @@ export const getLogs = async (req: Request, res: Response, next: NextFunction): 
 
 export const getAdmins = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { page, limit } = req.query;
+    const { page, limit, search, status } = req.query;
     const adminsData = await superAdminService.getAdmins({
       page: page ? parseInt(String(page), 10) : undefined,
       limit: limit ? parseInt(String(limit), 10) : undefined,
+      search: search ? String(search) : undefined,
+      status: status ? String(status) : undefined,
     });
     res.status(200).json({
       success: true,
@@ -77,15 +81,11 @@ export const getAdminDetail = async (req: Request, res: Response, next: NextFunc
 
 export const createAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, email, workspaceName } = req.body;
+    const validatedData = createAdminSchema.parse(req.body);
     const actor = (req as any).user;
-    if (!name || !email || !workspaceName) {
-      res.status(400).json({ success: false, message: "Missing required fields name, email, or workspaceName" });
-      return;
-    }
     const adminData = await superAdminService.createAdmin(
       { id: actor._id.toString(), email: actor.email, fullName: actor.fullName },
-      { name, email, workspaceName }
+      validatedData
     );
     res.status(201).json({
       success: true,
@@ -93,6 +93,18 @@ export const createAdmin = async (req: Request, res: Response, next: NextFunctio
       ...adminData,
     });
   } catch (error: any) {
+    if (error instanceof ZodError) {
+      res.status(422).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.issues.map((e) => ({
+          field: e.path.join("."),
+          message: e.message,
+        })),
+        error: { message: "Validation failed" }
+      });
+      return;
+    }
     if (error.message && error.message.includes("exists")) {
       res.status(400).json({ success: false, message: error.message });
     } else {
@@ -103,20 +115,32 @@ export const createAdmin = async (req: Request, res: Response, next: NextFunctio
 
 export const updateAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const validatedData = updateAdminSchema.parse(req.body);
     const { id } = req.params;
-    const { name, workspaceName, status } = req.body;
     const actor = (req as any).user;
     const adminData = await superAdminService.updateAdmin(
       { id: actor._id.toString(), email: actor.email, fullName: actor.fullName },
       String(id),
-      { name, workspaceName, status }
+      validatedData
     );
     res.status(200).json({
       success: true,
       message: "Admin updated successfully",
       ...adminData,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error instanceof ZodError) {
+      res.status(422).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.issues.map((e) => ({
+          field: e.path.join("."),
+          message: e.message,
+        })),
+        error: { message: "Validation failed" }
+      });
+      return;
+    }
     next(error);
   }
 };
