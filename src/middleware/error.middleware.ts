@@ -9,12 +9,27 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  Logger.error("Global Error Interceptor", err, {
-    headers: req.headers,
-    query: req.query,
-    body: req.body,
-    ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
-  }, req.originalUrl, err.statusCode || 500);
+  let statusCode = err.statusCode || 500;
+  if (err instanceof mongoose.Error.CastError) statusCode = 400;
+  if (err instanceof ZodError) statusCode = 400;
+  if (err.name === "FormValidationError") statusCode = 422;
+  if (err instanceof mongoose.Error.ValidationError) statusCode = 400;
+  if (err.name === "MulterError") statusCode = 400;
+
+  if (statusCode >= 500) {
+    Logger.error("Global Error Interceptor", err, {
+      headers: req.headers,
+      query: req.query,
+      body: req.body,
+      ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
+    }, req.originalUrl, statusCode);
+  } else {
+    Logger.warn(`Client Request Warning: ${err.message || "Request failed"}`, {
+      headers: req.headers,
+      query: req.query,
+      ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
+    }, req.originalUrl, statusCode);
+  }
 
   // Cast Error (invalid ObjectId)
   if (err instanceof mongoose.Error.CastError) {
@@ -72,7 +87,6 @@ export const errorHandler = (
   }
 
   // Default Error
-  const statusCode = err.statusCode || 500;
   res.status(statusCode).json({
     success: false,
     message: err.message || "Internal Server Error",
