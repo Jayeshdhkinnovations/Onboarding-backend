@@ -62,15 +62,21 @@ export const uploadFile = async (
     }
 
     const formId = req.query.formId || req.body.formId;
-    const isLogo = file.fieldname === "logo" || req.query.type === "logo" || req.body.type === "logo";
-    const isBanner = file.fieldname === "cover" || file.fieldname === "banner" || req.query.type === "cover" || req.body.type === "cover" || req.query.type === "banner" || req.body.type === "banner";
+    const isBanner =
+      file.fieldname === "cover" ||
+      file.fieldname === "banner" ||
+      file.fieldname === "brand_banner" ||
+      file.fieldname === "brandBanner" ||
+      req.query.type === "cover" ||
+      req.body.type === "cover" ||
+      req.query.type === "banner" ||
+      req.body.type === "banner" ||
+      req.query.type === "brand_banner" ||
+      req.body.type === "brand_banner";
 
-    let subfolder = "brand";
-    if (isLogo) {
-      subfolder = path.join("brand", "brand_logo");
-    } else if (isBanner) {
-      subfolder = path.join("brand", "brand_banner");
-    }
+    const subfolder = isBanner
+      ? path.join("brand", "brand_banner")
+      : path.join("brand", "brand_logo");
 
     const userId = req.user._id.toString();
     const relativePath = formId

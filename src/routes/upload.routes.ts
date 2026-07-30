@@ -14,16 +14,22 @@ const storage = multer.diskStorage({
     const userId = req.user?._id?.toString() || "branding";
     const formId = req.query.formId || req.body.formId;
 
-    // Determine subfolder based on branding type
-    const isLogo = file.fieldname === "logo" || req.query.type === "logo" || req.body.type === "logo";
-    const isBanner = file.fieldname === "cover" || file.fieldname === "banner" || req.query.type === "cover" || req.body.type === "cover" || req.query.type === "banner" || req.body.type === "banner";
+    // Determine subfolder based on branding type: brand_banner for covers/banners, brand_logo for logos and all other brand uploads
+    const isBanner =
+      file.fieldname === "cover" ||
+      file.fieldname === "banner" ||
+      file.fieldname === "brand_banner" ||
+      file.fieldname === "brandBanner" ||
+      req.query.type === "cover" ||
+      req.body.type === "cover" ||
+      req.query.type === "banner" ||
+      req.body.type === "banner" ||
+      req.query.type === "brand_banner" ||
+      req.body.type === "brand_banner";
 
-    let subfolder = "brand";
-    if (isLogo) {
-      subfolder = path.join("brand", "brand_logo");
-    } else if (isBanner) {
-      subfolder = path.join("brand", "brand_banner");
-    }
+    const subfolder = isBanner
+      ? path.join("brand", "brand_banner")
+      : path.join("brand", "brand_logo");
 
     // Structure: uploads/<userId>/[formId]/brand/brand_logo/ OR brand_banner/
     const targetDir = formId
