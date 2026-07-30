@@ -88,7 +88,8 @@ export const uploadFile = async (
       isBranding,
     });
 
-    const fileUrl = `${req.protocol}://${req.get("host")}/api/upload/file/${file.filename}`;
+    const urlPath = relativePath.replace(/\\/g, "/");
+    const fileUrl = `${req.protocol}://${req.get("host")}/api/upload/file/${urlPath}`;
 
     const response: UploadResponse = {
       success: true,
@@ -156,10 +157,12 @@ export const getFile = async (
     // Extract only base name to prevent traversal attacks
     const safeFilename = path.basename(filename);
     const uploadDir = getUploadDir();
+    const normalizedPath = filename.replace(/[\/\\]/g, path.sep);
 
     // Query DB first to find its relative path
     const uploadDoc = await Upload.findOne({
       $or: [
+        { path: normalizedPath },
         { path: safeFilename },
         { path: { $regex: safeFilename + "$" } }
       ]

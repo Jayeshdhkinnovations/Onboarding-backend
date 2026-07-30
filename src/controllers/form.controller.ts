@@ -897,7 +897,8 @@ export const submitPublicForm = async (
             });
 
             // Map safe file URL to response answers key
-            const fileUrl = `${req.protocol}://${req.get("host")}/api/upload/file/${file.filename}`;
+            const urlPath = relPath.replace(/\\/g, "/");
+            const fileUrl = `${req.protocol}://${req.get("host")}/api/upload/file/${urlPath}`;
             answers[field.label] = {
               fileName: fileUrl,
               fileSize: file.size,
