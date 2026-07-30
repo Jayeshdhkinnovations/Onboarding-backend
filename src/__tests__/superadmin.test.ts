@@ -3,6 +3,9 @@ import mongoose from "mongoose";
 import request from "supertest";
 import app from "../app";
 import User from "../models/User";
+import { AuditLog } from "../models/AuditLog";
+import fs from "fs";
+import path from "path";
 import Workspace from "../models/Workspace";
 import Form from "../models/Form";
 import ResponseModel from "../models/Response";
@@ -308,6 +311,227 @@ describe("Super Admin Stats & Abuse Endpoints Integration Tests", () => {
       expect(res.body.logs[0].stack).toBeUndefined();
 
       process.env.NODE_ENV = originalEnv;
+    });
+  });
+
+  describe("GET /api/superadmin/stats Hourly Trends", () => {
+    it("should return 24-hour trends for all 6 metrics", async () => {
+      const res = await request(app)
+        .get("/api/superadmin/stats")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.trends).toBeDefined();
+      const metrics = [
+        "users",
+        "publishedForms",
+        "totalForms",
+        "totalResponses",
+        "storageUsed",
+        "responsesLast24h",
+      ];
+      for (const m of metrics) {
+        expect(res.body.trends[m]).toBeDefined();
+        expect(Array.isArray(res.body.trends[m])).toBe(true);
+        expect(res.body.trends[m].length).toBe(24);
+        expect(res.body.trends[m][0]).toHaveProperty("hour");
+        expect(res.body.trends[m][0]).toHaveProperty("count");
+      }
+    });
+  });
+
+  describe("Admin Management CRUD & Cascade Deletion", () => {
+    let testAdminId: string;
+    let testAdminEmail = "john.cascade@example.com";
+
+    it("should create a new admin and verify workspace bootstrapping", async () => {
+      const res = await request(app)
+        .post("/api/superadmin/admins")
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .send({
+          name: "John Cascade",
+          email: testAdminEmail,
+          workspaceName: "Cascade Consulting",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.admin).toBeDefined();
+      expect(res.body.admin.id).toBeDefined();
+      expect(res.body.admin.workspaceId).toBeDefined();
+
+      testAdminId = res.body.admin.id;
+
+      // Verify DB records
+      const user = await User.findById(testAdminId);
+      expect(user).toBeDefined();
+      expect(user?.fullName).toBe("John Cascade");
+      expect(user?.role).toBe("admin");
+      expect(user?.workspaceId).toBeDefined();
+
+      const ws = await Workspace.findById(user?.workspaceId);
+      expect(ws).toBeDefined();
+      expect(ws?.name).toBe("Cascade Consulting");
+    });
+
+    it("should list admins with correct form/response/storage count telemetry", async () => {
+      const res = await request(app)
+        .get("/api/superadmin/admins")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.admins).toBeDefined();
+      expect(Array.isArray(res.body.admins)).toBe(true);
+
+      const target = res.body.admins.find((a: any) => a.id === testAdminId);
+      expect(target).toBeDefined();
+      expect(target.name).toBe("John Cascade");
+      expect(target.email).toBe(testAdminEmail);
+      expect(target.workspaceName).toBe("Cascade Consulting");
+      expect(target.formCount).toBe(0);
+      expect(target.responseCount).toBe(0);
+      expect(target.storageUsed).toBe(0);
+    });
+
+    it("should fetch admin detail", async () => {
+      const res = await request(app)
+        .get(`/api/superadmin/admins/${testAdminId}`)
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.admin.id).toBe(testAdminId);
+      expect(res.body.admin.name).toBe("John Cascade");
+    });
+
+    it("should update admin name, workspace, and status", async () => {
+      const res = await request(app)
+        .patch(`/api/superadmin/admins/${testAdminId}`)
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .send({
+          name: "John Cascade Updated",
+          workspaceName: "Cascade Consulting Updated",
+          status: "suspended",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.admin.name).toBe("John Cascade Updated");
+      expect(res.body.admin.workspaceName).toBe("Cascade Consulting Updated");
+      expect(res.body.admin.status).toBe("suspended");
+
+      const user = await User.findById(testAdminId);
+      expect(user?.status).toBe("suspended");
+    });
+
+    it("should fail deletion if confirm email does not match", async () => {
+      const res = await request(app)
+        .delete(`/api/superadmin/admins/${testAdminId}`)
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .send({ confirm: "wrong@example.com" });
+
+      expect(res.status).toBe(422);
+      expect(res.body.success).toBe(false);
+    });
+
+    it("should cascade delete user, workspace, forms, responses, upload records, and physical files from disk", async () => {
+      const adminDoc = await User.findById(testAdminId);
+      const wsId = adminDoc?.workspaceId;
+
+      // Seed child records to delete
+      const formDoc = await Form.create({
+        title: "Test Form",
+        workspaceId: wsId,
+        fields: [],
+        status: "published",
+        slug: "test-cascade-slug",
+      });
+
+      await ResponseModel.create({
+        formId: formDoc._id,
+        answers: {},
+      });
+
+      // Create physical mock file on disk
+      const dummyDir = path.resolve(__dirname, "../../uploads");
+      if (!fs.existsSync(dummyDir)) {
+        fs.mkdirSync(dummyDir, { recursive: true });
+      }
+      const dummyFilePath = path.join(dummyDir, "test-cascade.txt");
+      fs.writeFileSync(dummyFilePath, "test cascade physical file content");
+
+      const uploadDoc = await Upload.create({
+        name: "test-cascade.txt",
+        path: dummyFilePath,
+        type: "text/plain",
+        size: 100,
+        owner: new mongoose.Types.ObjectId(testAdminId),
+      });
+
+      // Assert preconditions
+      expect(fs.existsSync(dummyFilePath)).toBe(true);
+
+      const res = await request(app)
+        .delete(`/api/superadmin/admins/${testAdminId}`)
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .send({ confirm: testAdminEmail });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.cascadeResult.userDeleted).toBe(true);
+      expect(res.body.cascadeResult.workspaceDeleted).toBe(true);
+      expect(res.body.cascadeResult.formsDeleted).toBe(1);
+      expect(res.body.cascadeResult.responsesDeleted).toBe(1);
+      expect(res.body.cascadeResult.filesCleared.successCount).toBe(1);
+
+      // Verify postconditions
+      expect(fs.existsSync(dummyFilePath)).toBe(false);
+
+      const userCheck = await User.findById(testAdminId);
+      expect(userCheck).toBeNull();
+
+      const wsCheck = await Workspace.findById(wsId);
+      expect(wsCheck).toBeNull();
+
+      const formCheck = await Form.findById(formDoc._id);
+      expect(formCheck).toBeNull();
+
+      const respCheck = await ResponseModel.findOne({ formId: formDoc._id });
+      expect(respCheck).toBeNull();
+
+      const uploadCheck = await Upload.findById(uploadDoc._id);
+      expect(uploadCheck).toBeNull();
+    });
+  });
+
+  describe("Audit Logs & Schema Immutability", () => {
+    it("should retrieve paginated audit log entries with filters", async () => {
+      const res = await request(app)
+        .get("/api/superadmin/audit?action=admin.create")
+        .set("Authorization", `Bearer ${superAdminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.auditLogs).toBeDefined();
+      expect(Array.isArray(res.body.auditLogs)).toBe(true);
+      expect(res.body.auditLogs.length).toBeGreaterThan(0);
+      expect(res.body.auditLogs[0].action).toBe("admin.create");
+      expect(res.body.auditLogs[0].actorEmail).toBeDefined();
+      expect(res.body.auditLogs[0].targetType).toBe("admin");
+    });
+
+    it("should prevent updating or deleting audit logs directly (immutability)", async () => {
+      const log = await AuditLog.findOne();
+      expect(log).toBeDefined();
+
+      if (log) {
+        // Attempt update should fail
+        log.actorEmail = "hacked@example.com";
+        await expect(log.save()).rejects.toThrow();
+
+        // Attempt direct delete should fail
+        await expect(AuditLog.deleteOne({ _id: log._id })).rejects.toThrow();
+      }
     });
   });
 });

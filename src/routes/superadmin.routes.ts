@@ -4,6 +4,7 @@ import {
   getAbuse,
   getLogs,
   getAdmins,
+  getAdminDetail,
   createAdmin,
   updateAdmin,
   deleteAdmin,
@@ -20,6 +21,7 @@ router.get("/stats", getStats);
 router.get("/abuse", getAbuse);
 router.get("/logs", getLogs);
 router.get("/admins", getAdmins);
+router.get("/admins/:id", getAdminDetail);
 router.post("/admins", createAdmin);
 router.patch("/admins/:id", updateAdmin);
 router.delete("/admins/:id", deleteAdmin);
