@@ -62,14 +62,8 @@ beforeEach(async () => {
   await Upload.deleteMany({});
   // Clean files in testUploadDir
   if (fs.existsSync(testUploadDir)) {
-    const files = fs.readdirSync(testUploadDir);
-    for (const file of files) {
-      try {
-        fs.unlinkSync(path.join(testUploadDir, file));
-      } catch (err) {
-        // ignore
-      }
-    }
+    fs.rmSync(testUploadDir, { recursive: true, force: true });
+    fs.mkdirSync(testUploadDir, { recursive: true });
   }
 });
 

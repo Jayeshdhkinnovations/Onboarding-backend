@@ -1,0 +1,11 @@
+{
+  "_id": "6a6b25c89354600ad0e1e4b8",
+  "formId": "6a6b25c89354600ad0e1e4ac",
+  "answers": {
+    "trigger-id": "hide-me",
+    "Trigger": "hide-me"
+  },
+  "createdAt": "2026-07-30T10:22:00.773Z",
+  "submittedAt": "2026-07-30T10:22:00.772Z",
+  "ipHash": "3e48ef9d22e096da6838540fb846999890462c8a32730a4f7a5eaee6945315f7"
+}

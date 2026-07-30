@@ -40,28 +40,49 @@ export const uploadFile = async (
       file.mimetype.startsWith("image/");
 
     if (isBranding && !file.mimetype.startsWith("image/")) {
+      if (file && file.path && fs.existsSync(file.path)) {
+        await deleteFileAndEmptyParents(file.path, getUploadDir());
+      }
       res.status(400).json({
         success: false,
         message: "Branding uploads (logo/cover) must be image files",
       });
-      // Throwing an error will cause the catch block to run fs.promises.unlink
-      throw new Error("MIME_TYPE_REJECTED");
+      return;
     }
 
     if (!req.user || !req.user._id) {
+      if (file && file.path && fs.existsSync(file.path)) {
+        await deleteFileAndEmptyParents(file.path, getUploadDir());
+      }
       res.status(401).json({
         success: false,
         message: "Unauthorized",
       });
-      throw new Error("UNAUTHORIZED");
+      return;
     }
 
-    // Persist file metadata in MongoDB: name, size, type, path (safe filename only), owner, upload time
+    const formId = req.query.formId || req.body.formId;
+    const isLogo = file.fieldname === "logo" || req.query.type === "logo" || req.body.type === "logo";
+    const isBanner = file.fieldname === "cover" || file.fieldname === "banner" || req.query.type === "cover" || req.body.type === "cover" || req.query.type === "banner" || req.body.type === "banner";
+
+    let subfolder = "brand";
+    if (isLogo) {
+      subfolder = path.join("brand", "brand_logo");
+    } else if (isBanner) {
+      subfolder = path.join("brand", "brand_banner");
+    }
+
+    const userId = req.user._id.toString();
+    const relativePath = formId
+      ? path.join(userId, String(formId), subfolder, file.filename)
+      : path.join(userId, subfolder, file.filename);
+
+    // Persist file metadata in MongoDB: name, size, type, path (structured path), owner, upload time
     const uploadDoc = await Upload.create({
       name: file.originalname,
       size: file.size,
       type: file.mimetype,
-      path: file.filename, // Serve via API, don't store raw disk path
+      path: relativePath,
       owner: req.user._id,
       uploadTime: new Date(),
       isBranding,
@@ -90,15 +111,13 @@ export const uploadFile = async (
     // clean up the temp write on failure
     if (file && file.path && fs.existsSync(file.path)) {
       try {
-        await fs.promises.unlink(file.path);
+        await deleteFileAndEmptyParents(file.path, getUploadDir());
       } catch (err) {
         console.error("Failed to delete temp file:", err);
       }
     }
 
-    if (error.message === "MIME_TYPE_REJECTED" || error.message === "UNAUTHORIZED") {
-      return;
-    }
+
 
     console.error("Error in uploadFile:", error);
     res.status(500).json({
@@ -114,7 +133,7 @@ export const getFile = async (
   res: Response
 ): Promise<void> => {
   try {
-    const filename = req.params.filename;
+    const filename = req.params.filename || (req.params as any)[0];
 
     if (!filename || typeof filename !== "string") {
       res.status(400).json({
@@ -125,7 +144,7 @@ export const getFile = async (
     }
 
     // Explicitly reject path traversal attempts
-    if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    if (filename.includes("..")) {
       res.status(400).json({
         success: false,
         message: "Invalid file path",
@@ -137,7 +156,17 @@ export const getFile = async (
     // Extract only base name to prevent traversal attacks
     const safeFilename = path.basename(filename);
     const uploadDir = getUploadDir();
-    const filePath = path.resolve(uploadDir, safeFilename);
+
+    // Query DB first to find its relative path
+    const uploadDoc = await Upload.findOne({
+      $or: [
+        { path: safeFilename },
+        { path: { $regex: safeFilename + "$" } }
+      ]
+    });
+
+    const targetPath = uploadDoc ? uploadDoc.path : safeFilename;
+    const filePath = path.resolve(uploadDir, targetPath);
 
     // Double check that the resolved path is indeed inside the upload directory
     if (!filePath.startsWith(path.resolve(uploadDir))) {
@@ -155,8 +184,6 @@ export const getFile = async (
       });
       return;
     }
-
-    const uploadDoc = await Upload.findOne({ path: safeFilename });
 
     // If it's a private file (not branding), check authentication
     if (!uploadDoc || !uploadDoc.isBranding) {
@@ -223,5 +250,41 @@ export const getFile = async (
       message: "Error serving file",
       error: error.message,
     });
+  }
+};
+
+export const cleanEmptyDirs = async (dir: string, stopDir: string) => {
+  try {
+    let currentDir = path.resolve(dir);
+    const resolvedStopDir = path.resolve(stopDir);
+    while (
+      currentDir.toLowerCase() !== resolvedStopDir.toLowerCase() &&
+      currentDir.toLowerCase().startsWith(resolvedStopDir.toLowerCase())
+    ) {
+      if (fs.existsSync(currentDir)) {
+        const files = await fs.promises.readdir(currentDir);
+        if (files.length === 0) {
+          await fs.promises.rmdir(currentDir);
+          currentDir = path.dirname(currentDir);
+        } else {
+          break;
+        }
+      } else {
+        currentDir = path.dirname(currentDir);
+      }
+    }
+  } catch (err) {
+    // Ignore cleanup errors silently
+  }
+};
+
+export const deleteFileAndEmptyParents = async (filePath: string, stopDir: string) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      await fs.promises.unlink(filePath);
+    }
+    await cleanEmptyDirs(path.dirname(filePath), stopDir);
+  } catch (err) {
+    console.error("Error during file/directory cleanup:", err);
   }
 };

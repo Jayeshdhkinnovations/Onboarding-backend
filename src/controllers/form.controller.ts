@@ -883,11 +883,14 @@ export const submitPublicForm = async (
               return;
             }
 
+            const ctx = (req as any).uploadContext;
+            const relPath = ctx ? path.join(ctx.userId, ctx.formId, "responses", ctx.responseId, file.filename) : file.filename;
+            
             await Upload.create({
               name: file.originalname,
               size: file.size,
               type: file.mimetype,
-              path: file.filename,
+              path: relPath,
               owner: workspace.owner,
               uploadTime: new Date(),
               isBranding: false,
@@ -903,7 +906,7 @@ export const submitPublicForm = async (
 
             // Link each stored file's key/path to its answer fieldId on the response record
             if (field.fieldId) {
-              answers[field.fieldId] = file.filename;
+              answers[field.fieldId] = relPath;
             }
           }
         }
@@ -916,8 +919,29 @@ export const submitPublicForm = async (
     const hashedIp = crypto.createHash("sha256").update(ipStr).digest("hex");
 
     // Call dynamic validation and persistence routine in formService
-    const submission = await formService.submitForm(form._id.toString(), answers, hashedIp);
+    const ctx = (req as any).uploadContext;
+    const submission = await formService.submitForm(form._id.toString(), answers, hashedIp, ctx?.responseId);
     submissionSuccess = true;
+
+    // Write response.json to disk inside responses/<responseId>/
+    if (ctx) {
+      const targetDir = path.join(getUploadDir(), ctx.userId, ctx.formId, "responses", ctx.responseId);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      fs.writeFileSync(
+        path.join(targetDir, "response.json"),
+        JSON.stringify({
+          _id: submission._id.toString(),
+          formId: form._id.toString(),
+          answers: answers,
+          createdAt: (submission as any).createdAt || new Date(),
+          submittedAt: (submission as any).submittedAt || new Date(),
+          ipHash: hashedIp
+        }, null, 2)
+      );
+    }
+
     const submissionObj = submission.toObject();
     delete (submissionObj as any).ipHash;
 

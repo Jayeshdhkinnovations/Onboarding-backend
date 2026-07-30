@@ -413,7 +413,7 @@ export class FormService {
     await this.formRepository.delete(formId, workspaceId);
   }
 
-  async submitForm(formId: string, answers: Record<string, any>, ipHash?: string) {
+  async submitForm(formId: string, answers: Record<string, any>, ipHash?: string, responseId?: string) {
     const form = await this.formRepository.findById(formId);
     if (!form) {
       const err = new Error("Form not found");
@@ -591,6 +591,7 @@ export class FormService {
     }
 
     return await ResponseModel.create({
+      _id: responseId || new mongoose.Types.ObjectId(),
       formId,
       answers,
       submittedAt: new Date(),

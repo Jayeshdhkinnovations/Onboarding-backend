@@ -3,18 +3,37 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { protect, blockSuspended } from "../middleware/auth.middleware";
-import { uploadFile, getFile, getUploadDir } from "../controllers/upload.controller";
+import { uploadFile, getFile, getUploadDir, cleanEmptyDirs } from "../controllers/upload.controller";
 
 const router = Router();
 
 // Multer Storage Configuration
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: any, file, cb) => {
     const uploadDir = getUploadDir();
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    const userId = req.user?._id?.toString() || "branding";
+    const formId = req.query.formId || req.body.formId;
+
+    // Determine subfolder based on branding type
+    const isLogo = file.fieldname === "logo" || req.query.type === "logo" || req.body.type === "logo";
+    const isBanner = file.fieldname === "cover" || file.fieldname === "banner" || req.query.type === "cover" || req.body.type === "cover" || req.query.type === "banner" || req.body.type === "banner";
+
+    let subfolder = "brand";
+    if (isLogo) {
+      subfolder = path.join("brand", "brand_logo");
+    } else if (isBanner) {
+      subfolder = path.join("brand", "brand_banner");
     }
-    cb(null, uploadDir);
+
+    // Structure: uploads/<userId>/[formId]/brand/brand_logo/ OR brand_banner/
+    const targetDir = formId
+      ? path.join(uploadDir, userId, String(formId), subfolder)
+      : path.join(uploadDir, userId, subfolder);
+
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    cb(null, targetDir);
   },
   filename: (req, file, cb) => {
     // Generate stable stored filename/path (avoid collisions and path traversal)
@@ -36,8 +55,24 @@ const uploadAny = multer({
 }).any();
 
 router.post("/", protect as any, blockSuspended as any, (req: any, res: any, next: any) => {
-  uploadAny(req, res, (err: any) => {
+  uploadAny(req, res, async (err: any) => {
     if (err) {
+      // Clean up any empty directory created by this request
+      try {
+        const userId = req.user?._id?.toString() || "branding";
+        const formId = req.query.formId || req.body.formId;
+        const uploadDir = getUploadDir();
+        const targetDir = formId
+          ? path.join(uploadDir, userId, String(formId), "brand")
+          : path.join(uploadDir, userId, "brand");
+
+        await cleanEmptyDirs(path.join(targetDir, "brand_logo"), uploadDir);
+        await cleanEmptyDirs(path.join(targetDir, "brand_banner"), uploadDir);
+        await cleanEmptyDirs(targetDir, uploadDir);
+      } catch (cleanupErr) {
+        // Ignore silently
+      }
+
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
           return res.status(400).json({
@@ -67,6 +102,6 @@ router.post("/", protect as any, blockSuspended as any, (req: any, res: any, nex
 });
 
 // Route to serve/stream the stored file for preview/download
-router.get("/file/:filename", getFile as any);
+router.get(/^\/file\/(.+)$/, getFile as any);
 
 export default router;
