@@ -1,4 +1,9 @@
 import mongoose, { Schema, Document } from "mongoose";
+export interface ILoginEntry {
+  timestamp: Date;
+  ip: string;
+  userAgent: string;
+}
 export interface IUser extends Document {
   firebaseUid: string;
   fullName: string;
@@ -7,6 +12,8 @@ export interface IUser extends Document {
   workspaceId: mongoose.Types.ObjectId;
   isActive: boolean;
   status: "active" | "suspended";
+  lastLogin: Date;
+  loginHistory: ILoginEntry[];
 }
 const UserSchema = new Schema<IUser>(
   {
@@ -54,6 +61,18 @@ const UserSchema = new Schema<IUser>(
       enum: ["active", "suspended"],
       default: "active",
     },
+
+    lastLogin: {
+      type: Date,
+    },
+
+    loginHistory: [
+      {
+        timestamp: { type: Date, default: Date.now },
+        ip: { type: String, default: "unknown" },
+        userAgent: { type: String, default: "unknown" },
+      },
+    ],
   },
   {
     timestamps: true,

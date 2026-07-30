@@ -372,13 +372,19 @@ export class SuperAdminService {
         responseCount,
         storageUsed,
       },
-      loginHistory: [
-        {
-          timestamp: (admin as any).updatedAt || (admin as any).createdAt,
-          ip: "unknown",
-          userAgent: "unknown",
-        },
-      ],
+      loginHistory: (admin as any).loginHistory?.length
+        ? (admin as any).loginHistory.slice(-5).reverse().map((e: any) => ({
+            timestamp: e.timestamp,
+            ip: e.ip || "unknown",
+            userAgent: e.userAgent || "unknown",
+          }))
+        : [
+            {
+              timestamp: (admin as any).lastLogin || (admin as any).updatedAt || (admin as any).createdAt,
+              ip: "unknown",
+              userAgent: "unknown",
+            },
+          ],
     };
   }
 

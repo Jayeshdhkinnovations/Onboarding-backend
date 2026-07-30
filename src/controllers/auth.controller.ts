@@ -206,8 +206,18 @@ export const session = async (
       return;
     }
 
-    // Update lastLogin
-    await User.findByIdAndUpdate(user!._id, { lastLogin: new Date() });
+    // Update lastLogin + push login history entry (keep last 5)
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+    const userAgent = req.headers["user-agent"] || "unknown";
+    await User.findByIdAndUpdate(user!._id, {
+      lastLogin: new Date(),
+      $push: {
+        loginHistory: {
+          $each: [{ timestamp: new Date(), ip, userAgent }],
+          $slice: -5,
+        },
+      },
+    });
 
     // Generate custom JWT
     const jwtToken = generateToken({
