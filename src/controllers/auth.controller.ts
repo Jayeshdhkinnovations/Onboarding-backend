@@ -112,6 +112,10 @@ export const getMe = async (
     }
 
     const u = authReq.user;
+
+    // Touch lastLogin on every /me call so it reflects "last active"
+    await User.findByIdAndUpdate(u._id, { lastLogin: new Date() });
+
     res.status(200).json({
       success: true,
       user: {
@@ -123,6 +127,7 @@ export const getMe = async (
         _id: u._id.toString(),
         fullName: u.fullName,
         role: u.role,
+        status: u.status || "active",
       },
     });
   } catch (error: any) {
@@ -190,6 +195,19 @@ export const session = async (
       // Populate workspaceId
       user = await User.findById(user._id).populate("workspaceId") as any;
     }
+
+    // Block suspended users at login
+    if (user!.status === "suspended") {
+      res.status(403).json({
+        success: false,
+        message: "Your account has been suspended. Please contact support.",
+        error: { code: "ACCOUNT_SUSPENDED", message: "ACCOUNT_SUSPENDED" }
+      });
+      return;
+    }
+
+    // Update lastLogin
+    await User.findByIdAndUpdate(user!._id, { lastLogin: new Date() });
 
     // Generate custom JWT
     const jwtToken = generateToken({

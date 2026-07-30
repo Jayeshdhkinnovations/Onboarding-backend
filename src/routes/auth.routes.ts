@@ -7,6 +7,6 @@ const router = Router();
 router.post("/signup", signup);
 router.post("/session", session);
 router.post("/logout", protect as any, blockSuspended as any, logout);
-router.get("/me", protect as any, blockSuspended as any, getMe);
+router.get("/me", protect as any, getMe);
 
 export default router;
