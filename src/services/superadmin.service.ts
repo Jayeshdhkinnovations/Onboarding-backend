@@ -8,6 +8,7 @@ import { AuditLog } from "../models/AuditLog";
 import { auth } from "../config/firebase";
 import fs from "fs";
 import path from "path";
+import { getUploadDir, deleteFileAndEmptyParents } from "../controllers/upload.controller";
 
 export class SuperAdminService {
   async getPlatformStats() {
@@ -522,54 +523,76 @@ export class SuperAdminService {
   ) {
     const admin = await User.findOne({ _id: id, role: "admin" }).populate("workspaceId");
     if (!admin) {
-      throw new Error("Admin not found");
+      const error: any = new Error("Admin not found");
+      error.statusCode = 404;
+      throw error;
     }
 
     if (confirmEmail !== admin.email) {
-      throw new Error("Confirmation email does not match admin's email exactly.");
+      const error: any = new Error("Confirmation email does not match admin's email exactly.");
+      error.statusCode = 422;
+      throw error;
     }
 
+    const wsId = (admin.workspaceId as any)?._id || admin.workspaceId;
+
+    // 1. Delete Firebase user + MongoDB user
     try {
-      await auth.deleteUser(admin.firebaseUid);
+      if (admin.firebaseUid) {
+        await auth.deleteUser(admin.firebaseUid);
+      }
     } catch (fbErr: any) {
       console.warn("⚠️ Firebase user deletion error:", fbErr.message);
     }
+    await User.deleteOne({ _id: admin._id });
+    const userDeleted = true;
 
-    const wsId = admin.workspaceId;
-    let formsDeleted = 0;
-    let responsesDeleted = 0;
-    let filesDeleted = { successCount: 0, failedCount: 0 };
+    // 2. Find forms by workspace
+    const forms = wsId ? await Form.find({ workspaceId: wsId }) : [];
+    const formIds = forms.map((f) => f._id);
 
-    if (wsId) {
-      const forms = await Form.find({ workspaceId: wsId });
-      formsDeleted = forms.length;
-      const formIds = forms.map((f) => f._id);
-
-      const respResult = await ResponseModel.deleteMany({ formId: { $in: formIds } });
-      responsesDeleted = respResult.deletedCount || 0;
-
-      await Form.deleteMany({ workspaceId: wsId });
-      await Workspace.deleteOne({ _id: wsId });
-    }
-
+    // 3. Find file metadata by owner
     const uploads = await Upload.find({ owner: admin._id });
+
+    // 4. Delete physical storage objects then their upload docs
+    let filesSuccessCount = 0;
+    let filesFailedCount = 0;
+    const uploadDir = getUploadDir();
+
     for (const up of uploads) {
       if (up.path) {
-        const fullPath = path.resolve(up.path);
+        const fullPath = path.isAbsolute(up.path)
+          ? up.path
+          : path.join(uploadDir, up.path);
         try {
           if (fs.existsSync(fullPath)) {
-            fs.unlinkSync(fullPath);
+            await deleteFileAndEmptyParents(fullPath, uploadDir);
           }
-          filesDeleted.successCount++;
+          filesSuccessCount++;
         } catch (err) {
           console.error(`Failed to delete physical file: ${fullPath}`, err);
-          filesDeleted.failedCount++;
+          filesFailedCount++;
         }
       }
     }
     await Upload.deleteMany({ owner: admin._id });
-    await User.deleteOne({ _id: admin._id });
 
+    // 5. Delete responses
+    const respResult = formIds.length > 0 ? await ResponseModel.deleteMany({ formId: { $in: formIds } }) : { deletedCount: 0 };
+    const responsesDeleted = respResult.deletedCount || 0;
+
+    // 6. Delete forms
+    const formsResult = wsId ? await Form.deleteMany({ workspaceId: wsId }) : { deletedCount: 0 };
+    const formsDeleted = formsResult.deletedCount || forms.length;
+
+    // 7. Delete workspace
+    let workspaceDeleted = false;
+    if (wsId) {
+      await Workspace.deleteOne({ _id: wsId });
+      workspaceDeleted = true;
+    }
+
+    // 8. Write audit log: admin.delete
     await AuditLog.create({
       actorId: actor.id,
       actorEmail: actor.email,
@@ -580,17 +603,22 @@ export class SuperAdminService {
       before: {
         name: admin.fullName,
         email: admin.email,
+        workspaceId: wsId ? wsId.toString() : null,
       },
     });
 
     return {
       cascadeResult: {
-        userDeleted: true,
-        workspaceDeleted: !!wsId,
+        userDeleted,
+        workspaceDeleted,
         formsDeleted,
         responsesDeleted,
-        filesCleared: filesDeleted,
+        filesCleared: {
+          successCount: filesSuccessCount,
+          failedCount: filesFailedCount,
+        },
       },
+      hasFailedDeletions: filesFailedCount > 0,
     };
   }
 

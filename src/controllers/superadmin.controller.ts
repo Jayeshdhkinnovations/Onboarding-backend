@@ -154,20 +154,22 @@ export const deleteAdmin = async (req: Request, res: Response, next: NextFunctio
       res.status(422).json({ success: false, message: "Confirmation email is required" });
       return;
     }
-    const cascadeData = await superAdminService.deleteAdmin(
+    const result = await superAdminService.deleteAdmin(
       { id: actor._id.toString(), email: actor.email, fullName: actor.fullName },
       String(id),
       confirm
     );
-    const hasFailedDeletions = cascadeData.cascadeResult.filesCleared.failedCount > 0;
-    res.status(hasFailedDeletions ? 207 : 200).json({
+    const status = result.hasFailedDeletions ? 207 : 200;
+    res.status(status).json({
       success: true,
-      message: "Admin deleted completely",
-      ...cascadeData,
+      message: result.hasFailedDeletions ? "Admin deleted with partial storage warnings" : "Admin deleted successfully",
+      cascadeResult: result.cascadeResult,
     });
   } catch (error: any) {
-    if (error.message && error.message.includes("Confirmation email")) {
+    if (error.statusCode === 422 || (error.message && error.message.includes("Confirmation email"))) {
       res.status(422).json({ success: false, message: error.message });
+    } else if (error.statusCode === 404 || (error.message && error.message.includes("not found"))) {
+      res.status(404).json({ success: false, message: error.message });
     } else {
       next(error);
     }

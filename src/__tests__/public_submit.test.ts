@@ -16,8 +16,15 @@ let tokenA: string;
 let adminA: any;
 let wsA: any;
 
+// Set UPLOAD_DIR env for testing to avoid polluting the actual uploads directory
+const testUploadDir = path.join(process.cwd(), "test_uploads_public_submit");
+process.env.UPLOAD_DIR = testUploadDir;
+
 beforeAll(async () => {
   process.env.JWT_SECRET = "test-secret-key-1234567890-test-key-long-enough";
+  if (!fs.existsSync(testUploadDir)) {
+    fs.mkdirSync(testUploadDir, { recursive: true });
+  }
   await mongoose.disconnect();
   mongoServer = await MongoMemoryServer.create();
   const mongoUri = mongoServer.getUri();
@@ -41,19 +48,9 @@ afterAll(async () => {
   if (mongoServer) {
     await mongoServer.stop();
   }
-  // Cleanup test uploads dir if any
-  const uploadsDir = path.join(process.cwd(), "uploads");
-  if (fs.existsSync(uploadsDir)) {
-    const files = fs.readdirSync(uploadsDir);
-    for (const file of files) {
-      if (file.includes("test-upload")) {
-        try {
-          fs.unlinkSync(path.join(uploadsDir, file));
-        } catch (e) {
-          // ignore
-        }
-      }
-    }
+  // Cleanup the isolated test uploads dir
+  if (fs.existsSync(testUploadDir)) {
+    fs.rmSync(testUploadDir, { recursive: true, force: true });
   }
 });
 
@@ -295,8 +292,7 @@ describe("POST /api/public/:slug/submit Integration Tests", () => {
 
     // Cleanup physical test upload
     if (uploadMeta) {
-      const uploadDir = path.join(process.cwd(), "uploads");
-      const filePath = path.join(uploadDir, uploadMeta.path);
+      const filePath = path.join(testUploadDir, uploadMeta.path);
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);

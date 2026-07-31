@@ -83,6 +83,19 @@ export const uploadFile = async (
       ? path.join(userId, String(formId), subfolder, file.filename)
       : path.join(userId, subfolder, file.filename);
 
+    // Multer staged the file into a scratch directory (see upload.routes.ts) since
+    // `formId` isn't reliably known until the full request body has been parsed.
+    // Now that it is, move the file into its real, structured resting place.
+    const uploadDir = getUploadDir();
+    const finalPath = path.join(uploadDir, relativePath);
+    const finalDir = path.dirname(finalPath);
+    if (!fs.existsSync(finalDir)) {
+      fs.mkdirSync(finalDir, { recursive: true });
+    }
+    fs.renameSync(file.path, finalPath);
+    await cleanEmptyDirs(path.dirname(file.path), uploadDir);
+    file.path = finalPath;
+
     // Persist file metadata in MongoDB: name, size, type, path (structured path), owner, upload time
     const uploadDoc = await Upload.create({
       name: file.originalname,
