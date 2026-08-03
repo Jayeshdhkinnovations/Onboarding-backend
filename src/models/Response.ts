@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IResponse extends Document {
   formId: mongoose.Types.ObjectId;
   answers: Record<string, any>;
+  status?: "completed" | "partial" | "flagged" | string;
   submittedAt?: Date;
   ipHash?: string;
   createdAt: Date;
@@ -21,6 +22,12 @@ const ResponseSchema = new Schema<IResponse>(
       type: Schema.Types.Mixed,
       required: true,
     },
+    status: {
+      type: String,
+      enum: ["completed", "partial", "flagged"],
+      default: "completed",
+      index: true,
+    },
     submittedAt: {
       type: Date,
       default: Date.now,
@@ -32,6 +39,11 @@ const ResponseSchema = new Schema<IResponse>(
   },
   { timestamps: true }
 );
+
+// Compound indexes for fast listing, filtering & sorting by formId + submittedAt (+ status)
+ResponseSchema.index({ formId: 1, submittedAt: -1, status: 1 });
+ResponseSchema.index({ formId: 1, submittedAt: -1 });
+ResponseSchema.index({ submittedAt: -1 });
 
 const ResponseModel = mongoose.model<IResponse>("Response", ResponseSchema);
 export default ResponseModel;

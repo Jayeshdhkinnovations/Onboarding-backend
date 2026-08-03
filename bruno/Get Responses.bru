@@ -1,0 +1,29 @@
+meta {
+  name: Get Responses
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/responses?formId={{form_id}}&status=completed&search=test&page=1&limit=10
+  body: none
+  auth: inherit
+}
+
+params:query {
+  formId: {{form_id}}
+  status: completed
+  search: test
+  page: 1
+  limit: 10
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isDefined
+  res.body.total: isDefined
+  res.body.page: isDefined
+  res.body.limit: isDefined
+  res.body.totalPages: isDefined
+}

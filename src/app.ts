@@ -12,6 +12,7 @@ import dashboardRoutes from "./routes/dashboard.routes";
 import uploadRoutes from "./routes/upload.routes";
 import templateRoutes from "./routes/template.routes";
 import publicRoutes from "./routes/public.routes";
+import responseRoutes from "./routes/response.routes";
 import superadminRoutes from "./routes/superadmin.routes";
 import { errorHandler } from "./middleware/error.middleware";
 
@@ -37,6 +38,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/forms", formRoutes);
+app.use("/api/responses", responseRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/upload", uploadRoutes);
