@@ -240,6 +240,45 @@ describe("GET /api/responses (Listing)", () => {
   });
 });
 
+describe("GET /api/responses/stats (Summary Cards)", () => {
+  it("should return correct total, new, in_progress, and completed counts for a form", async () => {
+    const res = await request(app)
+      .get(`/api/responses/stats?formId=${formAId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.stats).toBeDefined();
+    expect(res.body.stats.total).toBe(3);
+    expect(res.body.stats.new).toBe(1);
+    expect(res.body.stats.in_progress).toBe(1);
+    expect(res.body.stats.completed).toBe(1);
+    expect(res.body.stats.total).toBe(
+      res.body.stats.new + res.body.stats.in_progress + res.body.stats.completed
+    );
+  });
+
+  it("should return 403 when requesting stats for formId belonging to another workspace", async () => {
+    const res = await request(app)
+      .get(`/api/responses/stats?formId=${formBId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Forbidden");
+  });
+
+  it("should return 404 when formId does not exist", async () => {
+    const nonExistentId = new mongoose.Types.ObjectId().toString();
+    const res = await request(app)
+      .get(`/api/responses/stats?formId=${nonExistentId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+});
+
 describe("GET /api/responses/:id (Detail & File Joining)", () => {
   it("should return full response with joined response_files metadata without exposing internal disk path", async () => {
     const res = await request(app)

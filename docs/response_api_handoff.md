@@ -143,6 +143,25 @@ The Responses API routes (`/api/responses`) are fully implemented, workspace-sco
 
 ---
 
+### 6. Get Response Stats (Summary Cards)
+- **Method / Path:** `GET /api/responses/stats`
+- **Query Params:** `formId` *(required, string)*
+- **Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "stats": {
+    "total": 42,
+    "new": 10,
+    "in_progress": 5,
+    "completed": 27
+  }
+}
+```
+*Note: `total` always equals `new + in_progress + completed`. Counts reflect all responses for the form regardless of search/status/page filters.*
+
+---
+
 ## Error Codes Matrix
 
 | HTTP Status | Message | Description |

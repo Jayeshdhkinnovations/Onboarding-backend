@@ -113,6 +113,32 @@ export class ResponseService {
     };
   }
 
+  async getResponseStats(
+    workspaceId: string,
+    formId: string
+  ): Promise<{ total: number; new: number; in_progress: number; completed: number }> {
+    if (!formId || !mongoose.Types.ObjectId.isValid(formId)) {
+      const err: any = new Error("Form not found");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const form = await this.formRepository.findById(formId);
+    if (!form) {
+      const err: any = new Error("Form not found");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (form.workspaceId.toString() !== workspaceId) {
+      const err: any = new Error("Forbidden: You do not own this form's workspace");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    return await this.responseRepository.getStatsByFormId(form._id as mongoose.Types.ObjectId);
+  }
+
   async getResponseDetail(
     workspaceId: string,
     responseId: string,

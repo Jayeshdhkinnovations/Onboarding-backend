@@ -68,6 +68,56 @@ export const getResponses = async (
   }
 };
 
+export const getResponseStats = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const authReq = req as any;
+    if (!authReq.user) {
+      res.status(401).json({
+        success: false,
+        message: "Not authorized",
+        error: { message: "Not authorized" },
+      });
+      return;
+    }
+
+    const workspaceId = await getWorkspaceIdFromUser(authReq.user);
+    if (!workspaceId) {
+      res.status(400).json({
+        success: false,
+        message: "User is not associated with any workspace",
+        error: { message: "User is not associated with any workspace" },
+      });
+      return;
+    }
+
+    const { formId } = req.query;
+
+    const stats = await responseService.getResponseStats(
+      workspaceId,
+      String(formId || "")
+    );
+
+    res.status(200).json({
+      success: true,
+      stats,
+    });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+        error: { message: error.message },
+      });
+      return;
+    }
+    next(error);
+  }
+};
+
 export const getResponseDetail = async (
   req: Request,
   res: Response,

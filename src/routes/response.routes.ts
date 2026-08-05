@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getResponses,
+  getResponseStats,
   getResponseDetail,
   updateResponseStatus,
   deleteResponse,
@@ -12,6 +13,7 @@ const router = Router();
 
 // Scope all response routes with authentication and suspension checks
 router.get("/", protect as any, blockSuspended as any, getResponses);
+router.get("/stats", protect as any, blockSuspended as any, getResponseStats);
 router.get("/:id", protect as any, blockSuspended as any, getResponseDetail);
 router.patch("/:id", protect as any, blockSuspended as any, updateResponseStatus);
 router.delete("/:id", protect as any, blockSuspended as any, deleteResponse);

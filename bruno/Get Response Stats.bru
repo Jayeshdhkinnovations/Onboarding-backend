@@ -1,0 +1,21 @@
+meta {
+  name: Get Response Stats
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{base_url}}/api/responses/stats?formId={{form_id}}
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.stats: isDefined
+  res.body.stats.total: isDefined
+  res.body.stats.new: isDefined
+  res.body.stats.in_progress: isDefined
+  res.body.stats.completed: isDefined
+}
