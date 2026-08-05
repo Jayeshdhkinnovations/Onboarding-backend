@@ -1,0 +1,15 @@
+{
+  "_id": "6a7331d066df87e5c3673f7e",
+  "formId": "6a7331d066df87e5c3673f72",
+  "answers": {
+    "trigger-id": "other-value",
+    "6a7331d066df87e5c3673f73": "other-value",
+    "Trigger": "other-value",
+    "target-id": "should-be-persisted",
+    "6a7331d066df87e5c3673f75": "should-be-persisted",
+    "Target": "should-be-persisted"
+  },
+  "createdAt": "2026-08-05T12:51:29.004Z",
+  "submittedAt": "2026-08-05T12:51:29.004Z",
+  "ipHash": "3e48ef9d22e096da6838540fb846999890462c8a32730a4f7a5eaee6945315f7"
+}

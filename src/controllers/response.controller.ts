@@ -183,19 +183,25 @@ export const updateResponseStatus = async (
     const workspaceId = await getWorkspaceIdFromUser(authReq.user);
     const { id } = req.params;
 
+    // Extract status from req.body, req.body.data, or req.body.response
+    const rawPayload = {
+      status: req.body?.status ?? req.body?.data?.status ?? req.body?.response?.status ?? req.body,
+    };
+
     // Validate request body status using Zod schema
-    const validated = updateResponseStatusSchema.parse(req.body);
+    const validated = updateResponseStatusSchema.parse(rawPayload);
 
     const updatedResponse = await responseService.updateResponseStatus(
       workspaceId,
       String(id),
-      validated.status
+      validated.status as "new" | "in_progress" | "completed"
     );
 
     res.status(200).json({
       success: true,
       message: "Response status updated successfully",
       response: updatedResponse,
+      data: updatedResponse,
     });
   } catch (error: any) {
     if (error instanceof ZodError) {

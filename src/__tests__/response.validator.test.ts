@@ -1,6 +1,6 @@
-import { updateResponseStatusSchema } from "../validations/response.validator";
+import { updateResponseStatusSchema, normalizeStatus } from "../validations/response.validator";
 
-describe("updateResponseStatusSchema - Unit Tests", () => {
+describe("updateResponseStatusSchema - Unit Tests & Normalization", () => {
   it("should accept valid status values: 'new', 'in_progress', 'completed'", () => {
     const valid1 = updateResponseStatusSchema.safeParse({ status: "new" });
     expect(valid1.success).toBe(true);
@@ -12,7 +12,22 @@ describe("updateResponseStatusSchema - Unit Tests", () => {
     expect(valid3.success).toBe(true);
   });
 
-  it("should reject invalid status values like 'draft', 'archived', 'invalid'", () => {
+  it("should normalize and accept common frontend variants like 'in-progress', 'pending', 'partial', 'flagged', 'done'", () => {
+    expect(normalizeStatus("in-progress")).toBe("in_progress");
+    expect(normalizeStatus("pending")).toBe("in_progress");
+    expect(normalizeStatus("partial")).toBe("in_progress");
+    expect(normalizeStatus("flagged")).toBe("in_progress");
+    expect(normalizeStatus("done")).toBe("completed");
+    expect(normalizeStatus("IN_PROGRESS")).toBe("in_progress");
+
+    const parse1 = updateResponseStatusSchema.safeParse({ status: "in-progress" });
+    expect(parse1.success).toBe(true);
+
+    const parse2 = updateResponseStatusSchema.safeParse({ status: "pending" });
+    expect(parse2.success).toBe(true);
+  });
+
+  it("should reject completely invalid status values like 'draft', 'archived', 'invalid'", () => {
     const invalid1 = updateResponseStatusSchema.safeParse({ status: "draft" });
     expect(invalid1.success).toBe(false);
 
