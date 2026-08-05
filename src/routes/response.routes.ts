@@ -1,10 +1,20 @@
 import { Router } from "express";
-import { getResponses } from "../controllers/response.controller";
+import {
+  getResponses,
+  getResponseDetail,
+  updateResponseStatus,
+  deleteResponse,
+  getResponseFileUrl,
+} from "../controllers/response.controller";
 import { protect, blockSuspended } from "../middleware/auth.middleware";
 
 const router = Router();
 
-// GET /api/responses - List responses with workspace scoping, filtering & pagination
+// Scope all response routes with authentication and suspension checks
 router.get("/", protect as any, blockSuspended as any, getResponses);
+router.get("/:id", protect as any, blockSuspended as any, getResponseDetail);
+router.patch("/:id", protect as any, blockSuspended as any, updateResponseStatus);
+router.delete("/:id", protect as any, blockSuspended as any, deleteResponse);
+router.get("/:id/file/:fileId", protect as any, blockSuspended as any, getResponseFileUrl);
 
 export default router;

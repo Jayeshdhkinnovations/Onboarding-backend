@@ -1,0 +1,20 @@
+meta {
+  name: Get Response Detail
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/api/responses/{{response_id}}
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.response: isDefined
+  res.body.response._id: isDefined
+  res.body.response.formId: isDefined
+  res.body.response.status: isDefined
+}

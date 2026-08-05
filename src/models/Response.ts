@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IResponse extends Document {
   formId: mongoose.Types.ObjectId;
   answers: Record<string, any>;
-  status?: "completed" | "partial" | "flagged" | string;
+  status?: "new" | "in_progress" | "completed" | string;
   submittedAt?: Date;
   ipHash?: string;
   createdAt: Date;
@@ -24,8 +24,8 @@ const ResponseSchema = new Schema<IResponse>(
     },
     status: {
       type: String,
-      enum: ["completed", "partial", "flagged"],
-      default: "completed",
+      enum: ["new", "in_progress", "completed"],
+      default: "new",
       index: true,
     },
     submittedAt: {

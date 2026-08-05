@@ -1,0 +1,23 @@
+meta {
+  name: Update Response Status - Valid
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{base_url}}/api/responses/{{response_id}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "status": "in_progress"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.response.status: eq in_progress
+}

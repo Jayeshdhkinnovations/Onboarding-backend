@@ -914,7 +914,7 @@ export const submitPublicForm = async (
       }
     }
 
-    // Calculate client IP hash
+    // Calculate client IP hash (SHA-256, never raw IP)
     const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
     const ipStr = Array.isArray(ip) ? ip[0] : (typeof ip === "string" ? ip : "unknown");
     const hashedIp = crypto.createHash("sha256").update(ipStr).digest("hex");

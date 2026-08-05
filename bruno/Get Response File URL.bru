@@ -1,0 +1,17 @@
+meta {
+  name: Get Response File URL
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{base_url}}/api/responses/{{response_id}}/file/{{file_id}}
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.url: isDefined
+}

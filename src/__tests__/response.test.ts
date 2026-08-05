@@ -1,12 +1,16 @@
 import request from "supertest";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
+import fs from "fs";
+import path from "path";
 import app from "../app";
 import User from "../models/User";
 import Workspace from "../models/Workspace";
 import Form from "../models/Form";
 import ResponseModel from "../models/Response";
+import Upload from "../models/Upload";
 import { generateToken } from "../utils/generateToken";
+import { getUploadDir } from "../controllers/upload.controller";
 
 let mongoServer: MongoMemoryServer;
 let userAToken: string;
@@ -17,6 +21,10 @@ let workspaceAId: string;
 let workspaceBId: string;
 let formAId: string;
 let formBId: string;
+let responseA1Id: string;
+let responseB1Id: string;
+let fileMetadataId: string;
+let physicalFilePath: string;
 
 beforeAll(async () => {
   process.env.JWT_SECRET = "testsecret";
@@ -97,34 +105,57 @@ beforeAll(async () => {
 
   // Seed responses for Form A
   const now = Date.now();
-  await ResponseModel.create({
+  const respA1 = await ResponseModel.create({
     formId: formA._id,
     answers: { Email: "alice@example.com", Feedback: "Great platform" },
-    status: "completed",
+    status: "new",
     submittedAt: new Date(now - 3000),
+    ipHash: "a1b2c3d4e5f67890",
   });
+  responseA1Id = respA1._id.toString();
 
   await ResponseModel.create({
     formId: formA._id,
     answers: { Email: "bob@example.com", Feedback: "Needs improvement" },
-    status: "completed",
+    status: "in_progress",
     submittedAt: new Date(now - 2000),
+    ipHash: "1234567890abcdef",
   });
 
   await ResponseModel.create({
     formId: formA._id,
     answers: { Email: "charlie@example.com", Feedback: "Excellent customer service" },
-    status: "flagged",
+    status: "completed",
     submittedAt: new Date(now - 1000),
+    ipHash: "fedcba0987654321",
   });
 
+  // Create mock file on disk for responseA1Id
+  const uploadDir = getUploadDir();
+  const relPath = `${userAId}/${formAId}/responses/${responseA1Id}/attached_doc.pdf`;
+  physicalFilePath = path.join(uploadDir, relPath);
+  fs.mkdirSync(path.dirname(physicalFilePath), { recursive: true });
+  fs.writeFileSync(physicalFilePath, "fake pdf content for testing");
+
+  const uploadDoc = await Upload.create({
+    name: "attached_doc.pdf",
+    size: 1024,
+    type: "application/pdf",
+    path: relPath,
+    owner: new mongoose.Types.ObjectId(userAId),
+    isBranding: false,
+  });
+  fileMetadataId = uploadDoc._id.toString();
+
   // Seed response for Form B
-  await ResponseModel.create({
+  const respB1 = await ResponseModel.create({
     formId: formB._id,
     answers: { Name: "David" },
     status: "completed",
     submittedAt: new Date(now),
+    ipHash: "9999888877776666",
   });
+  responseB1Id = respB1._id.toString();
 });
 
 afterAll(async () => {
@@ -132,9 +163,13 @@ afterAll(async () => {
   if (mongoServer) {
     await mongoServer.stop();
   }
+  const uploadDir = getUploadDir();
+  if (fs.existsSync(uploadDir)) {
+    fs.rmSync(uploadDir, { recursive: true, force: true });
+  }
 });
 
-describe("GET /api/responses Integration & Security Tests", () => {
+describe("GET /api/responses (Listing)", () => {
   it("should fetch responses for a workspace form with pagination and submittedAt desc order", async () => {
     const res = await request(app)
       .get(`/api/responses?formId=${formAId}&page=1&limit=2`)
@@ -149,7 +184,6 @@ describe("GET /api/responses Integration & Security Tests", () => {
     expect(res.body.limit).toBe(2);
     expect(res.body.totalPages).toBe(2);
 
-    // Verify ordering: newest first (charlie -> bob -> alice)
     const timestamps = res.body.data.map((r: any) => new Date(r.submittedAt).getTime());
     expect(timestamps[0]).toBeGreaterThanOrEqual(timestamps[1]);
   });
@@ -165,12 +199,12 @@ describe("GET /api/responses Integration & Security Tests", () => {
 
   it("should filter responses by status", async () => {
     const res = await request(app)
-      .get(`/api/responses?formId=${formAId}&status=flagged`)
+      .get(`/api/responses?formId=${formAId}&status=completed`)
       .set("Authorization", `Bearer ${userAToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.length).toBe(1);
-    expect(res.body.data[0].status).toBe("flagged");
+    expect(res.body.data[0].status).toBe("completed");
     expect(res.body.data[0].answers.Email).toBe("charlie@example.com");
   });
 
@@ -185,7 +219,6 @@ describe("GET /api/responses Integration & Security Tests", () => {
   });
 
   it("should return 403 when formId belongs to another workspace", async () => {
-    // User A trying to access Form B (owned by User B)
     const res = await request(app)
       .get(`/api/responses?formId=${formBId}`)
       .set("Authorization", `Bearer ${userAToken}`);
@@ -205,7 +238,162 @@ describe("GET /api/responses Integration & Security Tests", () => {
     expect(res.body.success).toBe(false);
     expect(res.body.message).toContain("Form not found");
   });
+});
 
+describe("GET /api/responses/:id (Detail & File Joining)", () => {
+  it("should return full response with joined response_files metadata without exposing internal disk path", async () => {
+    const res = await request(app)
+      .get(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.response._id).toBe(responseA1Id);
+    expect(res.body.response.formId).toBe(formAId);
+    expect(res.body.response.status).toBe("new");
+    expect(res.body.response.response_files).toBeDefined();
+    expect(res.body.response.response_files.length).toBe(1);
+
+    const fileMeta = res.body.response.response_files[0];
+    expect(fileMeta.id).toBe(fileMetadataId);
+    expect(fileMeta.name).toBe("attached_doc.pdf");
+    expect(fileMeta.size).toBe(1024);
+    expect(fileMeta.type).toBe("application/pdf");
+    expect(fileMeta.url).toContain("/api/upload/file/");
+    // Assert internal disk path is NEVER exposed in metadata
+    expect((fileMeta as any).path).toBeUndefined();
+    expect((fileMeta as any).r2Key).toBeUndefined();
+  });
+
+  it("should return 403 when trying to access response from another workspace", async () => {
+    const res = await request(app)
+      .get(`/api/responses/${responseB1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("should return 404 when response does not exist", async () => {
+    const nonExistentId = new mongoose.Types.ObjectId().toString();
+    const res = await request(app)
+      .get(`/api/responses/${nonExistentId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+describe("PATCH /api/responses/:id (Status Update)", () => {
+  it("should update response status to 'in_progress'", async () => {
+    const res = await request(app)
+      .patch(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`)
+      .send({ status: "in_progress" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.response.status).toBe("in_progress");
+
+    const updated = await ResponseModel.findById(responseA1Id);
+    expect(updated?.status).toBe("in_progress");
+  });
+
+  it("should update response status to 'completed' (idempotent)", async () => {
+    const res = await request(app)
+      .patch(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`)
+      .send({ status: "completed" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.response.status).toBe("completed");
+  });
+
+  it("should reject invalid status with 422 Unprocessable Entity", async () => {
+    const res = await request(app)
+      .patch(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`)
+      .send({ status: "invalid_status_enum" });
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.errors).toBeDefined();
+  });
+
+  it("should return 403 on cross-workspace PATCH attempt", async () => {
+    const res = await request(app)
+      .patch(`/api/responses/${responseB1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`)
+      .send({ status: "completed" });
+
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("GET /api/responses/:id/file/:fileId (File URL Fetch)", () => {
+  it("should return safe tokenized backend URL for response file without raw disk path", async () => {
+    const res = await request(app)
+      .get(`/api/responses/${responseA1Id}/file/${fileMetadataId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.url).toContain("/api/upload/file/");
+    expect(res.body.url).not.toContain("C:");
+  });
+
+  it("should return 404 if file does not belong to the response", async () => {
+    const nonExistentFileId = new mongoose.Types.ObjectId().toString();
+    const res = await request(app)
+      .get(`/api/responses/${responseA1Id}/file/${nonExistentFileId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("should return 403 if accessing file for another workspace's response", async () => {
+    const res = await request(app)
+      .get(`/api/responses/${responseB1Id}/file/${fileMetadataId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("DELETE /api/responses/:id (Cascade Deletion & Sweep)", () => {
+  it("should return 403 on cross-workspace DELETE attempt", async () => {
+    const res = await request(app)
+      .delete(`/api/responses/${responseB1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("should cascade delete response, metadata, and physical disk files returning 204 No Content", async () => {
+    expect(fs.existsSync(physicalFilePath)).toBe(true);
+
+    const res = await request(app)
+      .delete(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(204);
+
+    // Verify response is deleted from DB
+    const dbResponse = await ResponseModel.findById(responseA1Id);
+    expect(dbResponse).toBeNull();
+
+    // Verify Upload metadata record is deleted from DB
+    const dbUpload = await Upload.findById(fileMetadataId);
+    expect(dbUpload).toBeNull();
+
+    // Verify physical file was unlinked from disk (no orphaned files remaining)
+    expect(fs.existsSync(physicalFilePath)).toBe(false);
+  });
+});
+
+describe("Compound Index Verification", () => {
   it("should verify compound index exists on ResponseModel", async () => {
     const indexes = ResponseModel.schema.indexes();
     const hasCompoundIndex = indexes.some((item: any) => {

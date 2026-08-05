@@ -1,0 +1,15 @@
+meta {
+  name: Delete Response
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{base_url}}/api/responses/{{response_id}}
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 204
+}

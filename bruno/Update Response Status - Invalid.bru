@@ -1,0 +1,23 @@
+meta {
+  name: Update Response Status - Invalid
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{base_url}}/api/responses/{{response_id}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "status": "invalid_status_enum"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.success: eq false
+  res.body.message: eq Validation failed
+}
