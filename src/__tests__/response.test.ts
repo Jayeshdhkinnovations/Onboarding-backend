@@ -393,6 +393,28 @@ describe("DELETE /api/responses/:id (Cascade Deletion & Sweep)", () => {
   });
 });
 
+describe("Security & Injection Safety", () => {
+  it("should safely sanitize search inputs containing regex / injection special characters", async () => {
+
+    const res = await request(app)
+      .get(`/api/responses?formId=${formAId}&search=${encodeURIComponent(".*+?^${}()|[]\\")}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toBeDefined();
+  });
+
+  it("should never return another workspace's responses when formId parameter is missing or spoofed", async () => {
+    const res = await request(app)
+      .get(`/api/responses?formId=${formBId}`)
+      .set("Authorization", `Bearer ${userAToken}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+  });
+});
+
 describe("Compound Index Verification", () => {
   it("should verify compound index exists on ResponseModel", async () => {
     const indexes = ResponseModel.schema.indexes();

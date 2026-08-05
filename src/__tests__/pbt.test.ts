@@ -857,4 +857,130 @@ describe("Form API Property-Based Testing", () => {
       { numRuns: 10 }
     );
   });
+
+  it("Property: pagination never exceeds bounds (data.length <= limit, limit capped at 50, offsets within total)", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.integer({ min: 1, max: 50 }),
+        fc.integer({ min: 1, max: 100 }),
+        async (page, inputLimit) => {
+          const res = await request(app)
+            .get(`/api/responses?page=${page}&limit=${inputLimit}`)
+            .set("Authorization", `Bearer ${tokenA}`);
+
+          expect(res.status).toBe(200);
+          expect(res.body.success).toBe(true);
+          const effectiveLimit = Math.min(inputLimit, 50);
+          expect(res.body.limit).toBe(effectiveLimit);
+          expect(res.body.data.length).toBeLessThanOrEqual(effectiveLimit);
+          expect(res.body.total).toBeGreaterThanOrEqual(0);
+          expect(res.body.page).toBe(page);
+        }
+      ),
+      { numRuns: 15 }
+    );
+  });
+
+  it("Property: a status PATCH only ever changes status (and updatedAt); no other field mutates", async () => {
+    // Create temporary form & response for Admin A
+    const form = await Form.create({
+      title: "PBT Status Mutate Form",
+      workspaceId: wsA._id,
+      status: "published",
+      publishedSlug: "pbt-status-mutate-slug",
+      fields: [],
+    });
+    const originalResp = await ResponseModel.create({
+      formId: form._id,
+      answers: { PBTKey: "PBTValue123" },
+      status: "new",
+      submittedAt: new Date(),
+      ipHash: "1111222233334444",
+    });
+
+    const statusOptions = ["new", "in_progress", "completed"];
+
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom(...statusOptions),
+        async (targetStatus) => {
+          const res = await request(app)
+            .patch(`/api/responses/${originalResp._id}`)
+            .set("Authorization", `Bearer ${tokenA}`)
+            .send({ status: targetStatus });
+
+          expect(res.status).toBe(200);
+          expect(res.body.response.status).toBe(targetStatus);
+          // Verify immutable fields remain untouched
+          expect(res.body.response._id.toString()).toBe(originalResp._id.toString());
+          expect(res.body.response.formId.toString()).toBe(form._id.toString());
+          expect(res.body.response.answers.PBTKey).toBe("PBTValue123");
+          expect(res.body.response.ipHash).toBe("1111222233334444");
+        }
+      ),
+      { numRuns: 10 }
+    );
+
+    await Form.findByIdAndDelete(form._id);
+    await ResponseModel.deleteMany({ formId: form._id });
+  });
+
+  it("Property: file-download route requires file to belong to response's workspace (cross-workspace returns 403)", async () => {
+    // Create form & response for Admin A
+    const formA = await Form.create({
+      title: "PBT File Iso Form",
+      workspaceId: wsA._id,
+      status: "published",
+      publishedSlug: "pbt-file-iso-slug",
+      fields: [],
+    });
+    const respA = await ResponseModel.create({
+      formId: formA._id,
+      answers: {},
+      status: "completed",
+    });
+
+    // Create file metadata under Admin A's ownership
+    const uploadDoc = await Upload.create({
+      name: "pbt-test-file.pdf",
+      size: 500,
+      type: "application/pdf",
+      path: `${adminA._id}/${formA._id}/responses/${respA._id}/pbt-test-file.pdf`,
+      owner: adminA._id,
+      isBranding: false,
+    });
+
+    // Admin B attempting to download Admin A's file MUST be rejected with 403
+    const res = await request(app)
+      .get(`/api/responses/${respA._id}/file/${uploadDoc._id}`)
+      .set("Authorization", `Bearer ${tokenB}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+
+    await Form.findByIdAndDelete(formA._id);
+    await ResponseModel.deleteMany({ formId: formA._id });
+    await Upload.findByIdAndDelete(uploadDoc._id);
+  });
+
+  it("Property: internal storage key/disk path is NEVER present in any response payload", async () => {
+    const res = await request(app)
+      .get("/api/responses?limit=10")
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(200);
+
+    for (const item of res.body.data) {
+      expect(item.path).toBeUndefined();
+      expect(item.r2Key).toBeUndefined();
+      if (item.response_files) {
+        for (const file of item.response_files) {
+          expect(file.path).toBeUndefined();
+          expect(file.r2Key).toBeUndefined();
+          expect(file.url).toBeDefined();
+          expect(file.url).toContain("/api/upload/file/");
+        }
+      }
+    }
+  });
 });

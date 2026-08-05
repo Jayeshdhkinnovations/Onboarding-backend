@@ -1,23 +1,17 @@
 meta {
   name: Failure - 403 Forbidden
   type: http
-  seq: 8
+  seq: 9
 }
 
 get {
-  url: {{base_url}}/api/forms/:formId
+  url: {{base_url}}/api/responses?formId={{other_workspace_form_id}}
   body: none
-  auth: none
-}
-
-params:path {
-  formId: {{formId}}
-}
-
-headers {
-  Authorization: Bearer {{userBToken}}
+  auth: inherit
 }
 
 assert {
   res.status: eq 403
+  res.body.success: eq false
+  res.body.message: contains Forbidden
 }
