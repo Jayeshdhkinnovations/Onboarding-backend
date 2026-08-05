@@ -712,7 +712,7 @@ export const submitPublicForm = async (
 
     if (data) {
       try {
-        parsed = JSON.parse(data);
+        parsed = typeof data === "string" ? JSON.parse(data) : data;
       } catch (e) {
         res.status(422).json({
           success: false,
@@ -733,17 +733,20 @@ export const submitPublicForm = async (
           if (ans && typeof ans === "object") {
             const field = form.fields.find(
               (f: any) =>
-                (f.fieldId && f.fieldId === ans.fieldId) ||
-                f.label === ans.fieldLabel ||
-                f.label === ans.label
+                (f.fieldId && String(f.fieldId) === String(ans.fieldId)) ||
+                (f._id && String(f._id) === String(ans.fieldId)) ||
+                (f.label && ans.fieldLabel && f.label.trim() === ans.fieldLabel.trim()) ||
+                (f.label && ans.label && f.label.trim() === ans.label.trim())
             );
+            const value = ans.value;
             if (field) {
-              if (field.fieldId) answers[field.fieldId] = ans.value;
-              answers[field.label] = ans.value;
+              if (field.fieldId) answers[field.fieldId] = value;
+              if (field._id) answers[field._id.toString()] = value;
+              answers[field.label] = value;
             } else {
-              if (ans.fieldId !== undefined) answers[ans.fieldId] = ans.value;
-              if (ans.fieldLabel !== undefined) answers[ans.fieldLabel] = ans.value;
-              if (ans.label !== undefined) answers[ans.label] = ans.value;
+              if (ans.fieldId !== undefined) answers[ans.fieldId] = value;
+              if (ans.fieldLabel !== undefined) answers[ans.fieldLabel] = value;
+              if (ans.label !== undefined) answers[ans.label] = value;
             }
           }
         }
@@ -751,14 +754,19 @@ export const submitPublicForm = async (
         // Flat key-value map inside JSON / body object
         for (const key of Object.keys(parsed)) {
           if (key !== "data" && key !== "_hp") {
+            const val = parsed[key];
             const field = form.fields.find(
-              (f: any) => (f.fieldId && f.fieldId === key) || f.label === key
+              (f: any) =>
+                (f.fieldId && String(f.fieldId) === String(key)) ||
+                (f._id && String(f._id) === String(key)) ||
+                (f.label && f.label.trim() === key.trim())
             );
             if (field) {
-              if (field.fieldId) answers[field.fieldId] = parsed[key];
-              answers[field.label] = parsed[key];
+              if (field.fieldId) answers[field.fieldId] = val;
+              if (field._id) answers[field._id.toString()] = val;
+              answers[field.label] = val;
             } else {
-              answers[key] = parsed[key];
+              answers[key] = val;
             }
           }
         }
@@ -769,14 +777,19 @@ export const submitPublicForm = async (
     if (Object.keys(answers).length === 0 && req.body && typeof req.body === "object") {
       for (const key of Object.keys(req.body)) {
         if (key !== "data" && key !== "_hp") {
+          const val = req.body[key];
           const field = form.fields.find(
-            (f: any) => (f.fieldId && f.fieldId === key) || f.label === key
+            (f: any) =>
+              (f.fieldId && String(f.fieldId) === String(key)) ||
+              (f._id && String(f._id) === String(key)) ||
+              (f.label && f.label.trim() === key.trim())
           );
           if (field) {
-            if (field.fieldId) answers[field.fieldId] = req.body[key];
-            answers[field.label] = req.body[key];
+            if (field.fieldId) answers[field.fieldId] = val;
+            if (field._id) answers[field._id.toString()] = val;
+            answers[field.label] = val;
           } else {
-            answers[key] = req.body[key];
+            answers[key] = val;
           }
         }
       }

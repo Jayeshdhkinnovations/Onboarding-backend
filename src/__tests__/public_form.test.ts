@@ -157,3 +157,92 @@ describe("GET /api/public/:slug Integration Tests", () => {
     expect(publicRes.status).toBe(404);
   });
 });
+
+describe("POST /api/public/:slug/submit Payload Flexibility Tests", () => {
+  let pubSlug: string;
+  let field1Id: string;
+
+  beforeAll(async () => {
+    const createRes = await request(app)
+      .post("/api/forms")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        title: "Submission Payload Flex Form",
+        fields: [{ label: "Applicant Name", type: "short_text", required: true }],
+      });
+    const formId = createRes.body.form._id;
+    field1Id = createRes.body.form.fields[0].fieldId;
+
+    const pubRes = await request(app)
+      .post(`/api/forms/${formId}/publish`)
+      .set("Authorization", `Bearer ${tokenA}`);
+    pubSlug = pubRes.body.slug;
+  });
+
+  it("Variant 1: accepts data with answers array of {fieldId, value}", async () => {
+    const res = await request(app)
+      .post(`/api/public/${pubSlug}/submit`)
+      .field("data", JSON.stringify({ answers: [{ fieldId: field1Id, value: "Jane Doe" }] }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("Variant 2: accepts data with flat fieldId -> value map", async () => {
+    const res = await request(app)
+      .post(`/api/public/${pubSlug}/submit`)
+      .field("data", JSON.stringify({ [field1Id]: "Jane Doe" }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("Variant 3: accepts TDD doc shape {fieldId, fieldType, fieldLabel, value}", async () => {
+    const res = await request(app)
+      .post(`/api/public/${pubSlug}/submit`)
+      .field(
+        "data",
+        JSON.stringify({
+          answers: [
+            {
+              fieldId: field1Id,
+              fieldType: "short_text",
+              fieldLabel: "Applicant Name",
+              value: "Jane Doe",
+            },
+          ],
+        })
+      );
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("Variant 4: accepts individual multipart text fields by fieldId", async () => {
+    const res = await request(app)
+      .post(`/api/public/${pubSlug}/submit`)
+      .field(field1Id, "Jane Doe");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("Variant 5: accepts individual multipart text fields by label", async () => {
+    const res = await request(app)
+      .post(`/api/public/${pubSlug}/submit`)
+      .field("Applicant Name", "Jane Doe");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("Variant 6: accepts plain JSON body with answers array", async () => {
+    const res = await request(app)
+      .post(`/api/public/${pubSlug}/submit`)
+      .set("Content-Type", "application/json")
+      .send({ answers: [{ fieldId: field1Id, value: "Jane Doe" }] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+});
