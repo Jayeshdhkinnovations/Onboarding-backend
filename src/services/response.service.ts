@@ -1,6 +1,7 @@
 import { ResponseRepository } from "../repositories/response.repository";
 import { FormRepository } from "../repositories/form.repository";
 import Upload from "../models/Upload";
+import Form from "../models/Form";
 import { getUploadDir, deleteFileAndEmptyParents } from "../controllers/upload.controller";
 import { PaginatedResponsesResult, IResponse, IResponseFile } from "../types/response.types";
 import mongoose from "mongoose";
@@ -191,15 +192,25 @@ export class ResponseService {
     responseId: string,
     status: "new" | "in_progress" | "completed"
   ): Promise<IResponse> {
-    const response = await this.responseRepository.findById(responseId);
-    if (!response) {
+    if (!mongoose.Types.ObjectId.isValid(responseId)) {
       const err: any = new Error("Response not found");
       err.statusCode = 404;
       throw err;
     }
 
-    const form = await this.formRepository.findById(response.formId.toString());
-    if (!form || form.workspaceId.toString() !== workspaceId) {
+    const existingResponse = await this.responseRepository.findById(responseId);
+    if (!existingResponse) {
+      const err: any = new Error("Response not found");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const ownedForm = await Form.exists({
+      _id: existingResponse.formId,
+      workspaceId: workspaceId,
+    });
+
+    if (!ownedForm) {
       const err: any = new Error("Forbidden: You do not own this response's workspace");
       err.statusCode = 403;
       throw err;
@@ -207,8 +218,8 @@ export class ResponseService {
 
     const updated = await this.responseRepository.updateStatus(responseId, status);
     if (!updated) {
-      const err: any = new Error("Failed to update response status");
-      err.statusCode = 500;
+      const err: any = new Error("Response not found");
+      err.statusCode = 404;
       throw err;
     }
 

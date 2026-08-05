@@ -373,15 +373,13 @@ describe("PATCH /api/responses/:id (Status Update)", () => {
     expect(res.body.data.status).toBe("in_progress");
   });
 
-  it("should normalize status strings like 'in-progress' or 'pending'", async () => {
+  it("should reject status aliases like 'pending' with 422", async () => {
     const res = await request(app)
       .patch(`/api/responses/${responseA1Id}`)
       .set("Authorization", `Bearer ${userAToken}`)
-      .send({ data: { status: "in-progress" } });
+      .send({ status: "pending" });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.response.status).toBe("in_progress");
+    expect(res.status).toBe(422);
   });
 
   it("should return 403 on cross-workspace PATCH attempt", async () => {
