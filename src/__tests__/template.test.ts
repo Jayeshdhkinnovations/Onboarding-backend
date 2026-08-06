@@ -140,4 +140,60 @@ describe("Templates API Integration Tests", () => {
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
   });
+
+  it("should create a form from a template containing logicRules without throwing 500", async () => {
+    const field1Id = new mongoose.Types.ObjectId().toString();
+    const field2Id = new mongoose.Types.ObjectId().toString();
+
+    const logicTemplate = await Template.create({
+      name: "Pitch Template with Logic",
+      category: "advanced",
+      theme: "classic-light",
+      isActive: true,
+      fields: [
+        {
+          fieldId: field1Id,
+          label: "Status of Project",
+          type: "dropdown",
+          required: true,
+          options: ["Option A", "Option B"],
+          logicRules: [
+            {
+              targetFieldId: field2Id,
+              action: "show",
+              operator: "equals",
+              value: "Option A",
+              condition: {
+                fieldId: field1Id,
+                operator: "equals",
+                value: "Option A",
+              },
+            },
+          ],
+        },
+        {
+          fieldId: field2Id,
+          label: "Followup Details",
+          type: "long_text",
+          required: false,
+        },
+      ],
+    });
+
+    const res = await request(app)
+      .post(`/api/templates/${logicTemplate._id.toString()}/use`)
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.fields.length).toBe(2);
+
+    const newField1 = res.body.data.fields[0];
+    const newField2 = res.body.data.fields[1];
+
+    expect(newField1.logicRules).toBeDefined();
+    expect(newField1.logicRules.length).toBe(1);
+    expect(newField1.logicRules[0].targetFieldId).toBe(newField2.fieldId);
+    expect(newField1.logicRules[0].condition.fieldId).toBe(newField1.fieldId);
+  });
 });

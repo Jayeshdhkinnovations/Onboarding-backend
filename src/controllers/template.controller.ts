@@ -82,10 +82,48 @@ export const useTemplate = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Map template fields, omitting any preset fieldId or _id to allow FormService to generate fresh ones
+    // 1. Build field ID mapping (old fieldId/_id -> new fieldId)
+    const fieldIdMap = new Map<string, string>();
+    template.fields.forEach((f: any) => {
+      const raw = f.toObject ? f.toObject() : f;
+      const oldId = raw.fieldId || (raw._id ? raw._id.toString() : null);
+      const newId = new mongoose.Types.ObjectId().toString();
+      if (oldId) {
+        fieldIdMap.set(oldId, newId);
+      }
+    });
+
+    // 2. Map template fields with fresh fieldIds and re-mapped logicRules target/condition IDs
     const formFields = template.fields.map((f: any) => {
       const raw = f.toObject ? f.toObject() : f;
+      const oldId = raw.fieldId || (raw._id ? raw._id.toString() : null);
+      const newFieldId = (oldId && fieldIdMap.get(oldId)) || new mongoose.Types.ObjectId().toString();
+
+      let updatedLogicRules: any[] | undefined = undefined;
+      if (Array.isArray(raw.logicRules) && raw.logicRules.length > 0) {
+        updatedLogicRules = raw.logicRules.map((rule: any) => {
+          const ruleObj = rule.toObject ? rule.toObject() : { ...rule };
+          const targetFieldId = fieldIdMap.get(ruleObj.targetFieldId) || ruleObj.targetFieldId;
+
+          let condition = ruleObj.condition;
+          if (condition) {
+            const condObj = condition.toObject ? condition.toObject() : { ...condition };
+            condition = {
+              ...condObj,
+              fieldId: fieldIdMap.get(condObj.fieldId) || condObj.fieldId,
+            };
+          }
+
+          return {
+            ...ruleObj,
+            targetFieldId,
+            condition,
+          };
+        });
+      }
+
       return {
+        fieldId: newFieldId,
         label: raw.label,
         type: raw.type,
         required: raw.required,
@@ -103,7 +141,7 @@ export const useTemplate = async (req: Request, res: Response): Promise<void> =>
         options: raw.options,
         maxFileSize: raw.maxFileSize,
         allowedMimeTypes: raw.allowedMimeTypes,
-        logicRules: raw.logicRules,
+        logicRules: updatedLogicRules,
       };
     });
 
