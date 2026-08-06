@@ -8,6 +8,18 @@ import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
 
+const cleanAnswers = (answers: Record<string, any>): Record<string, any> => {
+  if (!answers || typeof answers !== "object") return {};
+  const cleaned: Record<string, any> = {};
+  for (const [key, val] of Object.entries(answers)) {
+    // Keep human-readable label keys and exclude raw 24-character MongoDB ObjectIds
+    if (!/^[0-9a-fA-F]{24}$/.test(key)) {
+      cleaned[key] = val;
+    }
+  }
+  return Object.keys(cleaned).length > 0 ? cleaned : answers;
+};
+
 export class ResponseService {
   private responseRepository = new ResponseRepository();
   private formRepository = new FormRepository();
@@ -97,7 +109,7 @@ export class ResponseService {
     const formattedData: IResponse[] = responses.map((r: any) => ({
       _id: r._id.toString(),
       formId: r.formId.toString(),
-      answers: r.answers,
+      answers: cleanAnswers(r.answers),
       status: r.status || "new",
       submittedAt: r.submittedAt,
       ipHash: r.ipHash,
@@ -177,7 +189,7 @@ export class ResponseService {
     return {
       _id: response._id.toString(),
       formId: response.formId.toString(),
-      answers: response.answers,
+      answers: cleanAnswers(response.answers),
       status: response.status || "new",
       submittedAt: response.submittedAt,
       ipHash: response.ipHash,

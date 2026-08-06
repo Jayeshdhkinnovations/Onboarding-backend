@@ -7,6 +7,8 @@ import Workspace from "../models/Workspace";
 
 import { signupSchema } from "../validations/auth.validator";
 import { generateToken } from "../utils/generateToken";
+import { mailService } from "../services/mail.service";
+import { checkVerificationRateLimit, checkResetRateLimit } from "../utils/rateLimiter";
 
 export const signup = async (
   req: Request,
@@ -167,6 +169,21 @@ export const session = async (
       return;
     }
 
+    // Session Enforcement: Block unverified password-provider accounts
+    const signInProvider = decodedToken.firebase?.sign_in_provider;
+    const isEmailVerified = decodedToken.email_verified === true;
+
+    if (signInProvider === "password" && !isEmailVerified) {
+      res.setHeader("Cache-Control", "no-store");
+      res.status(403).json({
+        success: false,
+        message: "Email not verified. Please verify your email first.",
+        code: "EMAIL_NOT_VERIFIED",
+        error: { code: "EMAIL_NOT_VERIFIED", message: "Email not verified" },
+      });
+      return;
+    }
+
     // Check if user already exists in MongoDB
     let user = await User.findOne({ firebaseUid }).populate("workspaceId");
 
@@ -261,4 +278,128 @@ export const logout = async (
     success: true,
     message: "Logged out successfully.",
   });
+};
+
+// POST /api/auth/email-verification
+export const requestEmailVerification = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const { token } = req.body;
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        error: { message: "Firebase ID Token is required." },
+      });
+      return;
+    }
+
+    let decodedToken;
+    try {
+      decodedToken = await getAuth().verifyIdToken(token, true);
+    } catch (err: any) {
+      res.status(401).json({
+        success: false,
+        error: { message: "Invalid or expired authentication token." },
+      });
+      return;
+    }
+
+    const { uid, email, email_verified } = decodedToken;
+    const signInProvider = decodedToken.firebase?.sign_in_provider;
+
+    if (!email) {
+      res.status(401).json({
+        success: false,
+        error: { message: "Invalid authentication token." },
+      });
+      return;
+    }
+
+    // Only send verification mail for unverified password-provider accounts
+    if (signInProvider === "password" && !email_verified) {
+      if (checkVerificationRateLimit(uid)) {
+        const appUrl = process.env.APP_URL || "https://app.beginso.com";
+        const actionUrl = await getAuth().generateEmailVerificationLink(email, {
+          url: `${appUrl}/verify-email`,
+        });
+        await mailService.sendMail({
+          to: email,
+          template: "verify_email",
+          actionUrl,
+        });
+      }
+    }
+
+    res.status(202).json({
+      message: "If the request is valid, a verification email will be sent.",
+    });
+  } catch (error: any) {
+    console.error("Email verification request error:", error);
+    res.status(202).json({
+      message: "If the request is valid, a verification email will be sent.",
+    });
+  }
+};
+
+// POST /api/auth/forgot-password
+export const requestForgotPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const rawEmail = req.body?.email;
+    if (!rawEmail || typeof rawEmail !== "string") {
+      res.status(202).json({
+        message: "If an account exists for that email, a password-reset link will be sent.",
+      });
+      return;
+    }
+
+    const normalizedEmail = rawEmail.trim().toLowerCase();
+    if (!normalizedEmail || normalizedEmail.length > 254) {
+      res.status(202).json({
+        message: "If an account exists for that email, a password-reset link will be sent.",
+      });
+      return;
+    }
+
+    // Always return 202 Accepted to prevent account enumeration
+    res.status(202).json({
+      message: "If an account exists for that email, a password-reset link will be sent.",
+    });
+
+    // Send password reset mail asynchronously
+    (async () => {
+      try {
+        const fbUser = await getAuth().getUserByEmail(normalizedEmail);
+        const hasPasswordProvider =
+          fbUser.providerData.some((p) => p.providerId === "password") ||
+          fbUser.tokensValidAfterTime !== undefined;
+
+        if (hasPasswordProvider && !fbUser.disabled) {
+          if (checkResetRateLimit(normalizedEmail)) {
+            const appUrl = process.env.APP_URL || "https://app.beginso.com";
+            const actionUrl = await getAuth().generatePasswordResetLink(normalizedEmail, {
+              url: `${appUrl}/login`,
+            });
+            await mailService.sendMail({
+              to: normalizedEmail,
+              template: "reset_password",
+              actionUrl,
+            });
+          }
+        }
+      } catch (err: any) {
+        // User not found or other internal error — logged internally
+      }
+    })();
+  } catch (error: any) {
+    res.status(202).json({
+      message: "If an account exists for that email, a password-reset link will be sent.",
+    });
+  }
 };

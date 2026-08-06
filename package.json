@@ -23,9 +23,10 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.3",
-    "nanoid": "^3.3.8",
     "morgan": "^1.11.0",
     "multer": "^1.4.5-lts.1",
+    "nanoid": "^3.3.8",
+    "nodemailer": "^9.0.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -36,6 +37,7 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^1.4.12",
     "@types/node": "^26.0.1",
+    "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^6.0.2",
     "@usebruno/cli": "^3.5.1",
     "fast-check": "^4.8.0",

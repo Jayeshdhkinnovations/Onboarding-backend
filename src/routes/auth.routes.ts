@@ -1,11 +1,20 @@
 import { Router } from "express";
-import { signup, getMe, session, logout } from "../controllers/auth.controller";
+import {
+  signup,
+  getMe,
+  session,
+  logout,
+  requestEmailVerification,
+  requestForgotPassword,
+} from "../controllers/auth.controller";
 import { protect, blockSuspended } from "../middleware/auth.middleware";
 
 const router = Router();
 
 router.post("/signup", signup);
 router.post("/session", session);
+router.post("/email-verification", requestEmailVerification);
+router.post("/forgot-password", requestForgotPassword);
 router.post("/logout", protect as any, blockSuspended as any, logout);
 router.get("/me", protect as any, getMe);
 

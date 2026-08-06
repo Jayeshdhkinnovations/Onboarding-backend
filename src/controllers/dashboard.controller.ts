@@ -13,10 +13,16 @@ export const getAnalytics = async (req: Request, res: Response, next: NextFuncti
 
     // 1. Get workspace associated with the user
     let workspaceId = authReq.user.workspaceId;
+    if (workspaceId && typeof workspaceId === "object" && workspaceId._id) {
+      workspaceId = workspaceId._id.toString();
+    } else if (workspaceId) {
+      workspaceId = workspaceId.toString();
+    }
+
     if (!workspaceId) {
       const workspace = await Workspace.findOne({ owner: authReq.user._id });
       if (workspace) {
-        workspaceId = workspace._id;
+        workspaceId = workspace._id.toString();
       }
     }
 
@@ -25,58 +31,91 @@ export const getAnalytics = async (req: Request, res: Response, next: NextFuncti
         success: true,
         analytics: {
           totalForms: 0,
+          publishedForms: 0,
           totalResponses: 0,
+          responsesThisMonth: 0,
+          recentActivity: [],
           formsBreakdown: [],
+        },
+        data: {
+          totalForms: 0,
+          publishedForms: 0,
+          totalResponses: 0,
+          responsesThisMonth: 0,
+          recentActivity: [],
         },
       });
       return;
     }
 
-    // 2. Find all forms in the workspace
-    const forms = await Form.find({ workspaceId });
-    const formIds = forms.map((f) => f._id);
+    const workspaceIdStr = workspaceId.toString();
 
-    // 3. Find all responses for all forms in the workspace
-    const allResponses = await ResponseModel.find({ formId: { $in: formIds } }).sort({ createdAt: -1 });
+    // 2. Find all forms in the workspace
+    const forms = await Form.find({ workspaceId: workspaceIdStr });
+    const formIds = forms.map((f) => f._id);
+    const formMap = new Map(forms.map((f) => [f._id.toString(), f.title]));
 
     const totalForms = forms.length;
-    const totalResponses = allResponses.length;
+    const publishedForms = forms.filter((f) => f.status === "published").length;
 
-    // Group responses by formId for easy counts and activity breakdown
-    const responsesByForm: Record<string, typeof allResponses> = {};
-    for (const resObj of allResponses) {
-      const fId = resObj.formId.toString();
-      if (!responsesByForm[fId]) {
-        responsesByForm[fId] = [];
-      }
-      responsesByForm[fId].push(resObj);
-    }
+    // Start of current month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    // 3. Aggregate total responses & responses this month
+    const totalResponses = await ResponseModel.countDocuments({ formId: { $in: formIds } });
+    const responsesThisMonth = await ResponseModel.countDocuments({
+      formId: { $in: formIds },
+      submittedAt: { $gte: startOfMonth },
+    });
+
+    // 4. Fetch recent responses for recent activity (limit 10)
+    const recentResponses = await ResponseModel.find({ formId: { $in: formIds } })
+      .sort({ submittedAt: -1 })
+      .limit(10);
+
+    const recentActivity = recentResponses.map((r) => ({
+      id: r._id.toString(),
+      type: "response_submitted",
+      title: formMap.get(r.formId.toString()) || "Form Response",
+      description: `New response received`,
+      timestamp: r.submittedAt || r.createdAt,
+    }));
+
+    // 5. Aggregate per-form response counts for formsBreakdown
+    const responseCountsArr = await ResponseModel.aggregate([
+      { $match: { formId: { $in: formIds } } },
+      { $group: { _id: "$formId", count: { $sum: 1 } } },
+    ]);
+    const responseCountMap = new Map(responseCountsArr.map((item) => [item._id.toString(), item.count]));
 
     const formsBreakdown = forms.map((form) => {
-      const formResponses = responsesByForm[form._id.toString()] || [];
-      const responseCount = formResponses.length;
-      
-      // Calculate a dummy/realistic response rate (e.g. 75% if responses > 0)
-      const responseRate = responseCount > 0 ? 75 : 0;
-      
-      const lastActivity = responseCount > 0 ? formResponses[0].createdAt : null;
-
+      const fId = form._id.toString();
+      const count = responseCountMap.get(fId) || 0;
       return {
-        formId: form._id,
+        formId: fId,
         title: form.title,
-        responseCount,
-        responseRate,
-        lastActivity,
+        status: form.status,
+        responseCount: count,
+        responseRate: count > 0 ? 75 : 0,
+        updatedAt: form.updatedAt,
       };
     });
 
+    const analyticsData = {
+      totalForms,
+      publishedForms,
+      totalResponses,
+      responsesThisMonth,
+      recentActivity,
+      formsBreakdown,
+    };
+
     res.status(200).json({
       success: true,
-      analytics: {
-        totalForms,
-        totalResponses,
-        formsBreakdown,
-      },
+      analytics: analyticsData,
+      data: analyticsData,
     });
   } catch (error) {
     next(error);
