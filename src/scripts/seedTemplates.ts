@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 import Template from "../models/Template";
 
 dotenv.config();
@@ -11,11 +13,26 @@ const seedTemplates = async () => {
     await mongoose.connect(mongoUri);
     console.log("✅ Connected to MongoDB for seeding");
 
+    // Read seeds.json for pitch template
+    let pitchSeedsData: any = { pages: [], fields: [] };
+    const seedsPath = path.join(__dirname, "../../seeds.json");
+    if (fs.existsSync(seedsPath)) {
+      pitchSeedsData = JSON.parse(fs.readFileSync(seedsPath, "utf-8"));
+    }
+
     // Clear existing templates
     await Template.deleteMany({});
     console.log("🗑️ Cleared existing templates");
 
     const templates = [
+      {
+        name: "Pitch Plan",
+        category: "advanced",
+        theme: "classic-light",
+        isActive: true,
+        pages: pitchSeedsData.pages || [],
+        fields: pitchSeedsData.fields || [],
+      },
       {
         name: "Contact Information Form",
         category: "General",
