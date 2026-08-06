@@ -10,7 +10,8 @@
     "test": "jest --runInBand --detectOpenHandles",
     "seed:templates": "ts-node src/scripts/seedTemplates.ts",
     "seed:form": "ts-node src/scripts/seedFullForm.ts",
-    "seed:superadmin": "ts-node src/scripts/seedSuperAdmin.ts"
+    "seed:superadmin": "ts-node src/scripts/seedSuperAdmin.ts",
+    "seed:user-responses": "ts-node src/scripts/seedUserResponses.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

@@ -298,7 +298,8 @@ export class ResponseService {
     responseId: string,
     fileId: string,
     host: string,
-    protocol: string
+    protocol: string,
+    sessionToken?: string
   ): Promise<{ url: string }> {
     const response = await this.responseRepository.findById(responseId);
     if (!response) {
@@ -327,7 +328,10 @@ export class ResponseService {
       throw err;
     }
 
-    const safeUrl = `${protocol}://${host}/api/upload/file/${upload.path.replace(/\\/g, "/")}`;
+    let safeUrl = `${protocol}://${host}/api/upload/file/${upload.path.replace(/\\/g, "/")}`;
+    if (sessionToken) {
+      safeUrl += `?token=${encodeURIComponent(sessionToken)}`;
+    }
 
     return { url: safeUrl };
   }
