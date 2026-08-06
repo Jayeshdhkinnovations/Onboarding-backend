@@ -13,15 +13,27 @@ export const protect = async (
 ): Promise<void> => {
   let token: string | undefined;
 
-  // 1. Check Authorization Header
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    token = req.headers.authorization.split(" ")[1];
+  // 1. Check Authorization Header (case-insensitive)
+  const authHeader = req.headers.authorization || (req.headers as any).Authorization;
+  if (authHeader && typeof authHeader === "string") {
+    const parts = authHeader.trim().split(" ");
+    if (parts.length === 2 && /^bearer$/i.test(parts[0])) {
+      token = parts[1];
+    } else if (parts.length === 1) {
+      token = parts[0];
+    }
   }
 
-  // 2. Check Cookies (if token/jwt/access_token cookie exists)
+  // 2. Check Query Parameters (?token=... or ?access_token=...)
+  if (!token && req.query) {
+    if (typeof req.query.token === "string") {
+      token = req.query.token;
+    } else if (typeof req.query.access_token === "string") {
+      token = req.query.access_token;
+    }
+  }
+
+  // 3. Check Cookies (if token/jwt/access_token cookie exists)
   if (!token && req.headers.cookie) {
     const cookies = req.headers.cookie.split(";").reduce((acc, c) => {
       const [name, ...val] = c.trim().split("=");

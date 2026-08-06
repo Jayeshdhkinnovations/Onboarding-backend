@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { AuthenticatedRequest } from "../middleware/auth.middleware";
 import Upload from "../models/Upload";
 import User from "../models/User";
+import Workspace from "../models/Workspace";
 import { UploadResponse } from "../types/upload";
 
 // ponytail: This implementation utilizes local disk storage for keeping uploaded assets.
@@ -177,11 +178,13 @@ export const getFile = async (
     const safeFilename = path.basename(filename);
     const uploadDir = getUploadDir();
     const normalizedPath = filename.replace(/[\/\\]/g, path.sep);
+    const forwardSlashPath = filename.replace(/[\/\\]/g, "/");
 
     // Query DB first to find its relative path
     const uploadDoc = await Upload.findOne({
       $or: [
         { path: normalizedPath },
+        { path: forwardSlashPath },
         { path: safeFilename },
         { path: { $regex: safeFilename + "$" } }
       ]
@@ -211,15 +214,34 @@ export const getFile = async (
     if (!uploadDoc || !uploadDoc.isBranding) {
       let token: string | undefined;
 
-      // 1. Check Authorization Header
-      if (
-        req.headers.authorization &&
-        req.headers.authorization.startsWith("Bearer")
-      ) {
-        token = req.headers.authorization.split(" ")[1];
+      // 1. Check Authorization Header (case-insensitive)
+      const authHeader = req.headers.authorization || (req.headers as any).Authorization;
+      if (authHeader && typeof authHeader === "string") {
+        const parts = authHeader.trim().split(" ");
+        if (parts.length === 2 && /^bearer$/i.test(parts[0])) {
+          token = parts[1];
+        } else if (parts.length === 1) {
+          token = parts[0];
+        }
       }
 
-      // 2. Check Cookies
+      // 2. Check Query Parameters (?token=... or ?access_token=...)
+      if (!token && req.query) {
+        if (typeof req.query.token === "string") {
+          token = req.query.token;
+        } else if (typeof req.query.access_token === "string") {
+          token = req.query.access_token;
+        } else if (typeof req.query.auth === "string") {
+          token = req.query.auth;
+        }
+      }
+
+      // 3. Check Custom Header
+      if (!token && req.headers["x-access-token"] && typeof req.headers["x-access-token"] === "string") {
+        token = req.headers["x-access-token"];
+      }
+
+      // 4. Check Cookies
       if (!token && req.headers.cookie) {
         const cookies = req.headers.cookie.split(";").reduce((acc, c) => {
           const [name, ...val] = c.trim().split("=");
@@ -252,6 +274,41 @@ export const getFile = async (
             error: { message: "Unauthorized: Invalid user session" },
           });
           return;
+        }
+
+        // Workspace authorization check for private files with owner metadata
+        if (uploadDoc && uploadDoc.owner) {
+          const ownerId = uploadDoc.owner.toString();
+          const userId = user._id.toString();
+          const userWorkspaceId = user.workspaceId ? user.workspaceId.toString() : "";
+
+          let isAuthorized = userId === ownerId || user.role === "super_admin";
+          if (!isAuthorized && userWorkspaceId) {
+            const ownerWorkspace = await Workspace.findOne({ owner: ownerId });
+            if (ownerWorkspace && ownerWorkspace._id.toString() === userWorkspaceId) {
+              isAuthorized = true;
+            }
+          }
+          if (!isAuthorized) {
+            const workspace = await Workspace.findOne({
+              $or: [
+                { _id: userWorkspaceId, owner: ownerId },
+                { owner: ownerId, "members.user": userId },
+              ],
+            });
+            if (workspace) {
+              isAuthorized = true;
+            }
+          }
+
+          if (!isAuthorized) {
+            res.status(403).json({
+              success: false,
+              message: "Forbidden: You do not have permission to access this file",
+              error: { message: "Forbidden: You do not have permission to access this file" },
+            });
+            return;
+          }
         }
       } catch (err) {
         res.status(401).json({
