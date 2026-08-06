@@ -339,14 +339,43 @@ describe("PATCH /api/responses/:id (Status Update)", () => {
     expect(updated?.status).toBe("in_progress");
   });
 
-  it("should update response status to 'completed' (idempotent)", async () => {
-    const res = await request(app)
+  it("should revert response status from 'completed' back to 'new'", async () => {
+    // 1. Set to completed
+    await request(app)
       .patch(`/api/responses/${responseA1Id}`)
       .set("Authorization", `Bearer ${userAToken}`)
       .send({ status: "completed" });
 
+    // 2. Revert back to new
+    const res = await request(app)
+      .patch(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`)
+      .send({ status: "new" });
+
     expect(res.status).toBe(200);
-    expect(res.body.response.status).toBe("completed");
+    expect(res.body.success).toBe(true);
+    expect(res.body.response.status).toBe("new");
+
+    const inDb = await ResponseModel.findById(responseA1Id);
+    expect(inDb?.status).toBe("new");
+  });
+
+  it("should revert response status from 'in_progress' back to 'new'", async () => {
+    // 1. Set to in_progress
+    await request(app)
+      .patch(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`)
+      .send({ status: "in_progress" });
+
+    // 2. Revert back to new
+    const res = await request(app)
+      .patch(`/api/responses/${responseA1Id}`)
+      .set("Authorization", `Bearer ${userAToken}`)
+      .send({ status: "new" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.response.status).toBe("new");
   });
 
   it("should reject invalid status with 422 Unprocessable Entity", async () => {
