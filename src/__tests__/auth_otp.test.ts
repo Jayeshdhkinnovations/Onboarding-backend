@@ -80,6 +80,37 @@ describe("Auth OTP & Extended API Requirements", () => {
     expect([400, 401]).toContain(resInvalid.status);
   });
 
+  it("should consume valid reveal ticket and return 6-digit OTP code once", async () => {
+    const rawTicket = "opaque-reveal-ticket-1234567890-test-ticket";
+    const ticketHash = hashKey(rawTicket);
+
+    const AuthTicket = (await import("../models/AuthTicket")).default;
+    await AuthTicket.create({
+      firebaseUid: "auth-otp-user-a",
+      purpose: "reveal_verify_email_code",
+      ticketHash,
+      consumed: false,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    // Reveal OTP code using ticket
+    const resReveal = await request(app)
+      .post("/api/auth/email-verification/reveal")
+      .send({ ticket: rawTicket });
+
+    expect(resReveal.status).toBe(200);
+    expect(resReveal.body.code).toBeDefined();
+    expect(resReveal.body.code).toMatch(/^\d{6}$/);
+
+    // Second reveal with same ticket should fail with 400
+    const resSecond = await request(app)
+      .post("/api/auth/email-verification/reveal")
+      .send({ ticket: rawTicket });
+
+    expect(resSecond.status).toBe(400);
+    expect(resSecond.body.message).toBe("This verification link is invalid or has expired.");
+  });
+
   it("should return workspace-wide response stats when formId is omitted from GET /api/responses/stats", async () => {
     const form1 = await Form.create({
       title: "Form One",

@@ -6,6 +6,7 @@ import crypto from "crypto";
 import User from "../models/User";
 import Workspace from "../models/Workspace";
 import AuthOtp from "../models/AuthOtp";
+import AuthTicket from "../models/AuthTicket";
 
 import { signupSchema } from "../validations/auth.validator";
 import { generateToken } from "../utils/generateToken";
@@ -321,53 +322,112 @@ export const requestEmailVerification = async (
       return;
     }
 
-    // Only send verification mail/code for unverified password-provider accounts
+    // Only send verification mail for unverified password-provider accounts
     if (signInProvider === "password" && !email_verified) {
       if (checkVerificationRateLimit(uid)) {
-        // Generate 6-digit OTP code using CSPRNG
-        const codeNum = crypto.randomInt(0, 1_000_000);
-        const code = codeNum.toString().padStart(6, "0");
-        const codeHash = hashKey(code);
+        // Generate a 32-byte opaque reveal ticket
+        const ticket = crypto.randomBytes(32).toString("base64url");
+        const ticketHash = hashKey(ticket);
 
-        // Invalidate older unused verification codes for this UID
-        await AuthOtp.deleteMany({ uid });
+        // Invalidate older reveal tickets for this UID
+        await AuthTicket.deleteMany({ firebaseUid: uid, purpose: "reveal_verify_email_code" });
 
-        // Store hashed code with 10-minute expiry
-        await AuthOtp.create({
-          uid,
-          codeHash,
-          attempts: 0,
-          consumed: false,
+        // Store hashed ticket with 10-minute expiry
+        await AuthTicket.create({
+          firebaseUid: uid,
+          purpose: "reveal_verify_email_code",
+          ticketHash,
           expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+          consumed: false,
         });
 
-        // Generate optional fallback signed link
         const appUrl = process.env.APP_URL || "https://beginso.com";
-        let actionUrl = "";
-        try {
-          actionUrl = await getAuth().generateEmailVerificationLink(email, {
-            url: `${appUrl}/verify-email`,
-          });
-        } catch (e) {
-          // Ignores link gen errors
-        }
+        const actionUrl = `${appUrl}/verification-code#ticket=${encodeURIComponent(ticket)}`;
 
         await mailService.sendMail({
           to: email,
           template: "verify_email_otp",
-          code,
           actionUrl,
         });
       }
     }
 
     res.status(202).json({
-      message: "If the request is valid, a verification code will be sent.",
+      message: "If the request is valid, a verification email will be sent.",
     });
   } catch (error: any) {
     console.error("Email verification request error:", error);
     res.status(202).json({
-      message: "If the request is valid, a verification code will be sent.",
+      message: "If the request is valid, a verification email will be sent.",
+    });
+  }
+};
+
+// POST /api/auth/email-verification/reveal
+export const revealEmailCode = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+  try {
+    const { ticket } = req.body;
+
+    if (!ticket || typeof ticket !== "string" || ticket.trim().length < 16) {
+      res.status(400).json({
+        message: "This verification link is invalid or has expired.",
+      });
+      return;
+    }
+
+    const cleanTicket = ticket.trim();
+    const ticketHash = hashKey(cleanTicket);
+
+    // Find and atomically consume one matching unused, unexpired ticket record
+    const ticketRecord = await AuthTicket.findOne({
+      ticketHash,
+      purpose: "reveal_verify_email_code",
+      consumed: false,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!ticketRecord) {
+      res.status(400).json({
+        message: "This verification link is invalid or has expired.",
+      });
+      return;
+    }
+
+    // Atomically consume ticket
+    ticketRecord.consumed = true;
+    ticketRecord.consumedAt = new Date();
+    await ticketRecord.save();
+
+    // Generate 6-digit OTP code using CSPRNG
+    const codeNum = crypto.randomInt(0, 1_000_000);
+    const code = codeNum.toString().padStart(6, "0");
+    const codeHash = hashKey(code);
+
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Invalidate older unused verification codes for this UID and store new OTP hash
+    await AuthOtp.deleteMany({ uid: ticketRecord.firebaseUid });
+    await AuthOtp.create({
+      uid: ticketRecord.firebaseUid,
+      codeHash,
+      attempts: 0,
+      consumed: false,
+      expiresAt,
+    });
+
+    res.status(200).json({
+      code,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (error: any) {
+    console.error("Reveal code error:", error);
+    res.status(400).json({
+      message: "This verification link is invalid or has expired.",
     });
   }
 };

@@ -46,12 +46,10 @@ class MailService {
     let textContent = "";
 
     if (template === "verify_email" || template === "verify_email_otp") {
-      subject = "Your Beginso verification code";
-      const rawCode = (code || "123456").replace(/\s+/g, "");
-      const formattedCode = rawCode.length === 6 ? `${rawCode.slice(0, 3)} ${rawCode.slice(3)}` : rawCode;
-      const verifyReturnUrl = `${appUrl}/verify-email`;
+      subject = "Verify your Beginso email";
+      const revealUrl = actionUrl || `${appUrl}/verification-code`;
 
-      textContent = `Verify your email\n\nWelcome to Beginso.\n\nUse the verification code below to complete your account setup:\n\n${formattedCode}\n\nThis code expires in 10 minutes.\n\nReturn to Beginso: ${verifyReturnUrl}\n\nIf you didn't create this account, you can safely ignore this email.`;
+      textContent = `Verify your email address\n\nClick the link below to securely view your six-digit verification code:\n\n${revealUrl}\n\nThis secure link and its verification code expire in 10 minutes.\n\nIf you did not create a Beginso account, ignore this email.`;
 
       htmlContent = `
         <!DOCTYPE html>
@@ -87,35 +85,31 @@ class MailService {
                       </table>
 
                       <!-- Heading & Copy -->
-                      <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 12px 0; letter-spacing: -0.3px;">Verify your email</h1>
-                      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 6px 0;">Welcome to Beginso.</p>
-                      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 28px 0;">Use the verification code below to complete your account setup.</p>
-
-                      <!-- 6-Digit OTP Code Box -->
-                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
-                        <tr>
-                          <td align="center" style="background-color: #EFF6FF; border: 1.5px dashed #BFDBFE; border-radius: 12px; padding: 24px 16px;">
-                            <span style="font-family: 'JetBrains Mono', 'Courier New', Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #1E40AF;">${formattedCode}</span>
-                          </td>
-                        </tr>
-                      </table>
-
-                      <p style="font-size: 13px; color: #6B7280; margin: 0 0 32px 0; text-align: center;">⏱️ This code expires in <strong>10 minutes</strong>.</p>
+                      <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 12px 0; letter-spacing: -0.3px;">Verify your email address</h1>
+                      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 24px 0;">Click the button below to securely view your six-digit verification code.</p>
 
                       <!-- Primary CTA Button -->
-                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
                         <tr>
                           <td align="center">
-                            <a href="${verifyReturnUrl}" target="_blank" style="background-color: #2563EB; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px; display: inline-block; box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.35);">Return to Beginso</a>
+                            <a href="${revealUrl}" target="_blank" style="background-color: #2563EB; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px; display: inline-block; box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.35);">View verification code</a>
                           </td>
                         </tr>
                       </table>
+
+                      <p style="font-size: 13px; color: #6B7280; margin: 0 0 24px 0; text-align: center;">⏱️ This secure link and its verification code expire in <strong>10 minutes</strong>.</p>
+
+                      <!-- Direct Link Fallback -->
+                      <div style="background-color: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 10px; padding: 16px; margin-bottom: 24px;">
+                        <p style="font-size: 12px; color: #6B7280; margin: 0 0 6px 0; font-weight: 600;">Button not working? Copy and paste this link into your browser:</p>
+                        <a href="${revealUrl}" target="_blank" style="font-size: 12px; color: #2563EB; word-break: break-all; text-decoration: underline;">${revealUrl}</a>
+                      </div>
 
                       <!-- Security Shield Card -->
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
                         <tr>
                           <td style="font-size: 13px; color: #6B7280; line-height: 1.5;">
-                            🛡️ <strong>Security Tip:</strong> Never share your verification code with anyone. Beginso staff will never ask for it.
+                            🛡️ <strong>Security Notice:</strong> The verification code is generated only when you click the button above and is displayed once securely on the Beginso website.
                           </td>
                         </tr>
                       </table>
@@ -124,7 +118,7 @@ class MailService {
                       
                       <!-- Footer -->
                       <p style="font-size: 12px; color: #9CA3AF; margin: 0; line-height: 1.5; text-align: center;">
-                        If you didn't create this account, you can safely ignore this email.<br/>
+                        If you did not create a Beginso account, ignore this email.<br/>
                         &copy; ${new Date().getFullYear()} Beginso Inc. All rights reserved.
                       </p>
                     </td>
