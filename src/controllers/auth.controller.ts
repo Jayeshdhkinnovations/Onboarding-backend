@@ -342,7 +342,7 @@ export const requestEmailVerification = async (
         });
 
         // Generate optional fallback signed link
-        const appUrl = process.env.APP_URL || "https://app.beginso.com";
+        const appUrl = process.env.APP_URL || "https://beginso.com";
         let actionUrl = "";
         try {
           actionUrl = await getAuth().generateEmailVerificationLink(email, {
