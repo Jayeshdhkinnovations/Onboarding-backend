@@ -492,9 +492,25 @@ export const requestForgotPassword = async (
         if (hasPasswordProvider && !fbUser.disabled) {
           if (checkResetRateLimit(normalizedEmail)) {
             const appUrl = process.env.APP_URL || "https://beginso.com";
-            const actionUrl = await getAuth().generatePasswordResetLink(normalizedEmail, {
+            const rawActionUrl = await getAuth().generatePasswordResetLink(normalizedEmail, {
               url: `${appUrl}/reset-password`,
             });
+
+            // Extract oobCode & apiKey and build direct website URL without firebaseapp.com domain
+            let actionUrl = rawActionUrl;
+            try {
+              const urlObj = new URL(rawActionUrl);
+              const oobCode = urlObj.searchParams.get("oobCode");
+              const apiKey = urlObj.searchParams.get("apiKey");
+              if (oobCode) {
+                actionUrl = `${appUrl}/reset-password?mode=resetPassword&oobCode=${encodeURIComponent(oobCode)}${
+                  apiKey ? `&apiKey=${encodeURIComponent(apiKey)}` : ""
+                }`;
+              }
+            } catch (e) {
+              // fallback to rawActionUrl
+            }
+
             await mailService.sendMail({
               to: normalizedEmail,
               template: "reset_password",
