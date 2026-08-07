@@ -5,7 +5,7 @@ import { SystemLog } from "../models/SystemLog";
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 export const submitRateLimiter = (req: Request, res: Response, next: NextFunction): void => {
-  const maxLimit = process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : 100;
+  const maxLimit = process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : 10;
   const windowMs = process.env.RATE_LIMIT_WINDOW_MS ? parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) : 60000; // 1 minute
 
   if (maxLimit === 0) {

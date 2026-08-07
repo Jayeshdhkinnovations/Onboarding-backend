@@ -458,6 +458,7 @@ describe("Form API Property-Based Testing", () => {
 
         const formPayload = {
           ...formInput,
+          status: "published",
           fields: [
             ...uniqueFields,
             {

@@ -1,0 +1,13 @@
+{
+  "_id": "6a75865b7f1fd3d324d1edef",
+  "formId": "6a75865b7f1fd3d324d1ede3",
+  "answers": {
+    "trigger-id": "hide-me",
+    "6a75865b7f1fd3d324d1ede4": "hide-me",
+    "Trigger": "hide-me",
+    "6a75865b7f1fd3d324d1ede6": "should-be-ignored"
+  },
+  "createdAt": "2026-08-07T07:16:43.524Z",
+  "submittedAt": "2026-08-07T07:16:43.524Z",
+  "ipHash": "3e48ef9d22e096da6838540fb846999890462c8a32730a4f7a5eaee6945315f7"
+}

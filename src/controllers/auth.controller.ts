@@ -2,13 +2,15 @@ import { Request, Response } from "express";
 import { getAuth } from "firebase-admin/auth";
 import { ZodError } from "zod";
 
+import crypto from "crypto";
 import User from "../models/User";
 import Workspace from "../models/Workspace";
+import AuthOtp from "../models/AuthOtp";
 
 import { signupSchema } from "../validations/auth.validator";
 import { generateToken } from "../utils/generateToken";
 import { mailService } from "../services/mail.service";
-import { checkVerificationRateLimit, checkResetRateLimit } from "../utils/rateLimiter";
+import { checkVerificationRateLimit, checkResetRateLimit, hashKey } from "../utils/rateLimiter";
 
 export const signup = async (
   req: Request,
@@ -114,9 +116,6 @@ export const getMe = async (
     }
 
     const u = authReq.user;
-
-    // Touch lastLogin on every /me call so it reflects "last active"
-    await User.findByIdAndUpdate(u._id, { lastLogin: new Date() });
 
     res.status(200).json({
       success: true,
@@ -318,28 +317,134 @@ export const requestEmailVerification = async (
       return;
     }
 
-    // Only send verification mail for unverified password-provider accounts
+    // Only send verification mail/code for unverified password-provider accounts
     if (signInProvider === "password" && !email_verified) {
       if (checkVerificationRateLimit(uid)) {
-        const appUrl = process.env.APP_URL || "https://app.beginso.com";
-        const actionUrl = await getAuth().generateEmailVerificationLink(email, {
-          url: `${appUrl}/verify-email`,
+        // Generate 6-digit OTP code using CSPRNG
+        const codeNum = crypto.randomInt(0, 1_000_000);
+        const code = codeNum.toString().padStart(6, "0");
+        const codeHash = hashKey(code);
+
+        // Invalidate older unused verification codes for this UID
+        await AuthOtp.deleteMany({ uid });
+
+        // Store hashed code with 10-minute expiry
+        await AuthOtp.create({
+          uid,
+          codeHash,
+          attempts: 0,
+          consumed: false,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
         });
+
+        // Generate optional fallback signed link
+        const appUrl = process.env.APP_URL || "https://app.beginso.com";
+        let actionUrl = "";
+        try {
+          actionUrl = await getAuth().generateEmailVerificationLink(email, {
+            url: `${appUrl}/verify-email`,
+          });
+        } catch (e) {
+          // Ignores link gen errors
+        }
+
         await mailService.sendMail({
           to: email,
-          template: "verify_email",
+          template: "verify_email_otp",
+          code,
           actionUrl,
         });
       }
     }
 
     res.status(202).json({
-      message: "If the request is valid, a verification email will be sent.",
+      message: "If the request is valid, a verification code will be sent.",
     });
   } catch (error: any) {
     console.error("Email verification request error:", error);
     res.status(202).json({
-      message: "If the request is valid, a verification email will be sent.",
+      message: "If the request is valid, a verification code will be sent.",
+    });
+  }
+};
+
+// POST /api/auth/email-verification/verify
+export const verifyEmailCode = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const { token, code } = req.body;
+
+    if (!token || !code || typeof code !== "string" || !/^\d{6}$/.test(code.trim())) {
+      res.status(400).json({
+        message: "Invalid or expired verification code.",
+      });
+      return;
+    }
+
+    let decodedToken;
+    try {
+      decodedToken = await getAuth().verifyIdToken(token);
+    } catch (err: any) {
+      res.status(401).json({
+        success: false,
+        error: { message: "Invalid or expired authentication token." },
+      });
+      return;
+    }
+
+    const { uid } = decodedToken;
+    const cleanCode = code.trim();
+    const inputHash = hashKey(cleanCode);
+
+    // Find active OTP record for this UID
+    const otpRecord = await AuthOtp.findOne({
+      uid,
+      consumed: false,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!otpRecord || otpRecord.attempts >= 5) {
+      res.status(400).json({
+        message: "Invalid or expired verification code.",
+      });
+      return;
+    }
+
+    // Compare hashes in constant time
+    const inputBuffer = Buffer.from(inputHash, "utf8");
+    const storedBuffer = Buffer.from(otpRecord.codeHash, "utf8");
+
+    const isMatch =
+      inputBuffer.length === storedBuffer.length &&
+      crypto.timingSafeEqual(inputBuffer, storedBuffer);
+
+    if (!isMatch) {
+      otpRecord.attempts += 1;
+      await otpRecord.save();
+
+      res.status(400).json({
+        message: "Invalid or expired verification code.",
+      });
+      return;
+    }
+
+    // Atomically mark OTP as consumed
+    otpRecord.consumed = true;
+    await otpRecord.save();
+
+    // Update Firebase user as emailVerified = true
+    await getAuth().updateUser(uid, { emailVerified: true });
+
+    res.status(200).json({
+      verified: true,
+    });
+  } catch (error: any) {
+    console.error("OTP verification error:", error);
+    res.status(400).json({
+      message: "Invalid or expired verification code.",
     });
   }
 };

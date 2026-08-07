@@ -2,6 +2,7 @@ import { ResponseRepository } from "../repositories/response.repository";
 import { FormRepository } from "../repositories/form.repository";
 import Upload from "../models/Upload";
 import Form from "../models/Form";
+import ResponseModel from "../models/Response";
 import { getUploadDir, deleteFileAndEmptyParents } from "../controllers/upload.controller";
 import { PaginatedResponsesResult, IResponse, IResponseFile } from "../types/response.types";
 import mongoose from "mongoose";
@@ -128,28 +129,61 @@ export class ResponseService {
 
   async getResponseStats(
     workspaceId: string,
-    formId: string
+    formId?: string
   ): Promise<{ total: number; new: number; in_progress: number; completed: number }> {
-    if (!formId || !mongoose.Types.ObjectId.isValid(formId)) {
-      const err: any = new Error("Form not found");
-      err.statusCode = 404;
-      throw err;
+    if (formId && formId.trim() !== "") {
+      if (!mongoose.Types.ObjectId.isValid(formId)) {
+        const err: any = new Error("Form not found");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const form = await this.formRepository.findById(formId);
+      if (!form) {
+        const err: any = new Error("Form not found");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      if (form.workspaceId.toString() !== workspaceId) {
+        const err: any = new Error("Forbidden: You do not own this form's workspace");
+        err.statusCode = 403;
+        throw err;
+      }
+
+      return await this.responseRepository.getStatsByFormId(form._id as mongoose.Types.ObjectId);
     }
 
-    const form = await this.formRepository.findById(formId);
-    if (!form) {
-      const err: any = new Error("Form not found");
-      err.statusCode = 404;
-      throw err;
+    // Workspace-wide stats across all forms in workspace
+    const forms = await this.formRepository.findWithPagination(
+      { workspaceId },
+      0,
+      10000,
+      workspaceId
+    );
+    const formIds = forms.map((f) => f._id);
+
+    const statsArr = await ResponseModel.aggregate([
+      { $match: { formId: { $in: formIds } } },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    let newCount = 0;
+    let inProgressCount = 0;
+    let completedCount = 0;
+
+    for (const item of statsArr) {
+      if (item._id === "new") newCount = item.count;
+      else if (item._id === "in_progress") inProgressCount = item.count;
+      else if (item._id === "completed") completedCount = item.count;
     }
 
-    if (form.workspaceId.toString() !== workspaceId) {
-      const err: any = new Error("Forbidden: You do not own this form's workspace");
-      err.statusCode = 403;
-      throw err;
-    }
-
-    return await this.responseRepository.getStatsByFormId(form._id as mongoose.Types.ObjectId);
+    return {
+      total: newCount + inProgressCount + completedCount,
+      new: newCount,
+      in_progress: inProgressCount,
+      completed: completedCount,
+    };
   }
 
   async getResponseDetail(

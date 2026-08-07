@@ -421,6 +421,9 @@ export class FormService {
       throw err;
     }
 
+    // Enforce close-date and response-limit availability check for all submission routes
+    await this.checkFormAvailability(form);
+
     // Dynamic validation logic against form fields
     const hiddenFieldIds = getHiddenFieldIds(form.fields, answers);
     const validationErrors: Array<{ field: string; message: string }> = [];
@@ -590,13 +593,23 @@ export class FormService {
       }
     }
 
-    return await ResponseModel.create({
+    const newResponse = await ResponseModel.create({
       _id: responseId || new mongoose.Types.ObjectId(),
       formId,
       answers,
       submittedAt: new Date(),
       ipHash,
     });
+
+    // Check if response limit has been reached and flip status to closed
+    if (form.settings?.responseLimitEnabled && form.settings.responseLimit !== undefined) {
+      const currentCount = await ResponseModel.countDocuments({ formId });
+      if (currentCount >= form.settings.responseLimit) {
+        await Form.updateOne({ _id: form._id }, { status: "closed" });
+      }
+    }
+
+    return newResponse;
   }
 
   async getSubmissions(formId: string, workspaceId: string) {
@@ -635,13 +648,13 @@ export class FormService {
     return await this.formRepository.create(workspaceId, duplicateData as any);
   }
 
-  private async checkFormAvailability(form: IForm): Promise<void> {
+  private async checkFormAvailability(form: IForm, isPublicRoute: boolean = false): Promise<void> {
     if (form.status === "closed") {
       const err = new Error("Form not found");
       (err as any).statusCode = 404;
       throw err;
     }
-    if (form.status !== "published") {
+    if (isPublicRoute && form.status !== "published") {
       const err = new Error("Form not found");
       (err as any).statusCode = 404;
       throw err;
@@ -688,7 +701,7 @@ export class FormService {
       (err as any).statusCode = 404;
       throw err;
     }
-    await this.checkFormAvailability(form);
+    await this.checkFormAvailability(form, true);
     return form;
   }
 }
