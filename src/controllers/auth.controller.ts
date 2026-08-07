@@ -502,6 +502,14 @@ export const verifyEmailCode = async (
     // Update Firebase user as emailVerified = true
     await getAuth().updateUser(uid, { emailVerified: true });
 
+    // Send asynchronous confirmation email
+    if (decodedToken.email) {
+      mailService.sendMail({
+        to: decodedToken.email,
+        template: "email_verified_success",
+      }).catch((e) => console.error("Failed to send verification confirmation mail:", e));
+    }
+
     res.status(200).json({
       verified: true,
     });
