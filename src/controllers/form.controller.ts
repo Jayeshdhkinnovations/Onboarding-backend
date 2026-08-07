@@ -933,11 +933,12 @@ export const submitPublicForm = async (
       }
     }
 
-    // Strip raw ObjectId/UUID keys from answers — only keep human-readable label keys
-    // This prevents duplicate keys (fieldId + _id + label) from being persisted
+    // Strip raw ObjectId/UUID/fieldId keys from answers — only keep human-readable label keys
     const labelKeys = new Set(form.fields.map((f: any) => f.label));
+    const fieldIdKeys = new Set(form.fields.map((f: any) => f.fieldId).filter(Boolean));
+    const idPattern = /^[0-9a-fA-F]{24}$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     for (const key of Object.keys(answers)) {
-      if (!labelKeys.has(key) && /^[0-9a-fA-F]{24}$/.test(key)) {
+      if (!labelKeys.has(key) && (idPattern.test(key) || fieldIdKeys.has(key))) {
         delete answers[key];
       }
     }

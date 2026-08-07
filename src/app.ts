@@ -19,19 +19,27 @@ import { errorHandler } from "./middleware/error.middleware";
 // Continuous Deployment Test Comment
 const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000")
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
+const defaultAllowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "https://beginso.com",
+  "https://app.beginso.com",
+  "https://www.beginso.com",
+];
+
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : defaultAllowedOrigins;
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (server-to-server, curl, mobile)
+      // Allow requests with no origin (server-to-server, curl, mobile, same-origin)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        // Return false so CORS rejects the origin cleanly without throwing 500 error
+        callback(null, false);
       }
     },
     credentials: true,

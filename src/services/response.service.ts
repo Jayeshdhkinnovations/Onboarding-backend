@@ -12,9 +12,10 @@ import path from "path";
 const cleanAnswers = (answers: Record<string, any>): Record<string, any> => {
   if (!answers || typeof answers !== "object") return {};
   const cleaned: Record<string, any> = {};
+  const idPattern = /^[0-9a-fA-F]{24}$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$|^f_[a-zA-Z0-9_-]+$/;
   for (const [key, val] of Object.entries(answers)) {
-    // Keep human-readable label keys and exclude raw 24-character MongoDB ObjectIds
-    if (!/^[0-9a-fA-F]{24}$/.test(key)) {
+    // Keep human-readable label keys and exclude raw ObjectIds, UUIDs, and fieldId patterns
+    if (!idPattern.test(key)) {
       cleaned[key] = val;
     }
   }

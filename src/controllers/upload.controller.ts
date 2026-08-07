@@ -280,20 +280,31 @@ export const getFile = async (
         if (uploadDoc && uploadDoc.owner) {
           const ownerId = uploadDoc.owner.toString();
           const userId = user._id.toString();
-          const userWorkspaceId = user.workspaceId ? user.workspaceId.toString() : "";
+          
+          let userWorkspaceId = user.workspaceId
+            ? (user.workspaceId._id ? user.workspaceId._id.toString() : user.workspaceId.toString())
+            : "";
+          
+          if (!userWorkspaceId) {
+            const userWs = await Workspace.findOne({ owner: userId });
+            if (userWs) userWorkspaceId = userWs._id.toString();
+          }
 
           let isAuthorized = userId === ownerId || user.role === "super_admin";
-          if (!isAuthorized && userWorkspaceId) {
-            const ownerWorkspace = await Workspace.findOne({ owner: ownerId });
-            if (ownerWorkspace && ownerWorkspace._id.toString() === userWorkspaceId) {
+          
+          if (!isAuthorized) {
+            const ownerWs = await Workspace.findOne({ owner: ownerId });
+            const ownerWsId = ownerWs ? ownerWs._id.toString() : "";
+            if (userWorkspaceId && ownerWsId && userWorkspaceId === ownerWsId) {
               isAuthorized = true;
             }
           }
+
           if (!isAuthorized) {
             const workspace = await Workspace.findOne({
               $or: [
-                { _id: userWorkspaceId, owner: ownerId },
                 { owner: ownerId, "members.user": userId },
+                { owner: userId, "members.user": ownerId },
               ],
             });
             if (workspace) {
