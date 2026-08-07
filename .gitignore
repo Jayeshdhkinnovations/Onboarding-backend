@@ -12,3 +12,4 @@ coverage/
 *~
 .vscode/settings.json
 /src/config/firebase/serviceAccountKey.json
+/backend-contract

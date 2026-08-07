@@ -70,14 +70,21 @@ export const getAnalytics = async (req: Request, res: Response, next: NextFuncti
       submittedAt: { $gte: startOfMonth },
     });
 
-    // 4. Fetch recent responses for recent activity (limit 10)
+    // 4. Fetch recent responses for recent activity (limit 5 per contract)
     const recentResponses = await ResponseModel.find({ formId: { $in: formIds } })
       .sort({ submittedAt: -1 })
-      .limit(10);
+      .limit(5);
 
     const recentActivity = recentResponses.map((r) => ({
       id: r._id.toString(),
       type: "response_submitted",
+      occurredAt: (r.submittedAt || r.createdAt).toISOString(),
+      form: {
+        _id: r.formId.toString(),
+        title: formMap.get(r.formId.toString()) || "Form Response",
+      },
+      responseId: r._id.toString(),
+      // Backwards compatibility
       title: formMap.get(r.formId.toString()) || "Form Response",
       description: `New response received`,
       timestamp: r.submittedAt || r.createdAt,

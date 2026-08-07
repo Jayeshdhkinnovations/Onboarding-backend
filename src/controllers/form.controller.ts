@@ -240,6 +240,12 @@ export const updateForm = async (req: Request, res: Response, next: NextFunction
       workspaceId: form.workspaceId,
       status: form.status,
       fields: form.fields,
+      pages: form.pages,
+      branding: form.branding,
+      settings: form.settings,
+      slug: form.status === "published" ? (form.publishedSlug || form.slug) : form.slug,
+      publishedSlug: form.publishedSlug,
+      publishedAt: form.publishedAt,
       schemaVersion: form.schemaVersion,
       createdAt: form.createdAt,
       updatedAt: form.updatedAt,
@@ -924,6 +930,15 @@ export const submitPublicForm = async (
             }
           }
         }
+      }
+    }
+
+    // Strip raw ObjectId/UUID keys from answers — only keep human-readable label keys
+    // This prevents duplicate keys (fieldId + _id + label) from being persisted
+    const labelKeys = new Set(form.fields.map((f: any) => f.label));
+    for (const key of Object.keys(answers)) {
+      if (!labelKeys.has(key) && /^[0-9a-fA-F]{24}$/.test(key)) {
+        delete answers[key];
       }
     }
 

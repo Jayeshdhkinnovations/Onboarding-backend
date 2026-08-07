@@ -26,7 +26,7 @@ router.post("/:formId/duplicate", protect as any, blockSuspended as any, duplica
 router.post("/:formId/publish", protect as any, blockSuspended as any, publishForm);
 router.post("/:formId/close", protect as any, blockSuspended as any, closeForm);
 
-router.post("/:formId/submissions", submitForm);
+router.post("/:formId/submissions", protect as any, blockSuspended as any, submitForm);
 router.get("/:formId/submissions", protect as any, blockSuspended as any, getSubmissions);
 
 export default router;

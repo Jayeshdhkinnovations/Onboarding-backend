@@ -316,10 +316,11 @@ export class FormService {
       }
     }
 
-    const publishedSlug = await this.generateUniqueSlug();
+    // Reuse existing slug on re-publish; only generate a new one on first publish
+    const publishedSlug = existing.publishedSlug || await this.generateUniqueSlug();
 
     updateDetails.status = "published";
-    updateDetails.publishedAt = new Date();
+    updateDetails.publishedAt = existing.publishedAt || new Date();
     updateDetails.publishedSlug = publishedSlug;
 
     const updated = await this.formRepository.update(formId, workspaceId, updateDetails);
