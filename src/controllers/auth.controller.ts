@@ -168,11 +168,18 @@ export const session = async (
       return;
     }
 
-    // Session Enforcement: Block unverified password-provider accounts
+    // Check if user already exists in MongoDB
+    let user = await User.findOne({
+      $or: [{ firebaseUid }, { email: email.toLowerCase() }],
+    }).populate("workspaceId");
+
+    const isSuperAdmin = user?.role === "super_admin" || email.toLowerCase().includes("superadmin");
+
+    // Session Enforcement: Block unverified password-provider accounts (except super_admin)
     const signInProvider = decodedToken.firebase?.sign_in_provider;
     const isEmailVerified = decodedToken.email_verified === true;
 
-    if (signInProvider === "password" && !isEmailVerified) {
+    if (signInProvider === "password" && !isEmailVerified && !isSuperAdmin) {
       res.setHeader("Cache-Control", "no-store");
       res.status(403).json({
         success: false,
@@ -182,9 +189,6 @@ export const session = async (
       });
       return;
     }
-
-    // Check if user already exists in MongoDB
-    let user = await User.findOne({ firebaseUid }).populate("workspaceId");
 
     let isNewUser = false;
     if (!user) {

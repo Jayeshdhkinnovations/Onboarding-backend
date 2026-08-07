@@ -33,6 +33,7 @@ const seedSuperAdmin = async () => {
             email,
             password,
             displayName: "Super Admin",
+            emailVerified: true,
           });
           firebaseUid = fbUser.uid;
           console.log(`🔥 Created Firebase user for Super Admin: ${email}`);
@@ -40,8 +41,8 @@ const seedSuperAdmin = async () => {
           if (fbErr.code === "auth/email-already-exists") {
             const fbUser = await auth.getUserByEmail(email);
             firebaseUid = fbUser.uid;
-            await auth.updateUser(firebaseUid, { password });
-            console.log(`🔥 Updated Firebase password for Super Admin: ${email}`);
+            await auth.updateUser(firebaseUid, { password, emailVerified: true });
+            console.log(`🔥 Updated Firebase password and emailVerified for Super Admin: ${email}`);
           } else {
             console.warn(`⚠️ Firebase Admin SDK error (using fallback UID):`, fbErr.message);
           }
