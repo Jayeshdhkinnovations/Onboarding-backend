@@ -51,32 +51,90 @@ class MailService {
       const formattedCode = rawCode.length === 6 ? `${rawCode.slice(0, 3)} ${rawCode.slice(3)}` : rawCode;
       const verifyReturnUrl = `${appUrl}/verify-email`;
 
-      textContent = `Verify your email\n\nWelcome to Beginso.\n\nUse the verification code below to complete your account setup.\n\n${formattedCode}\n\nThis code expires in 10 minutes.\n\nReturn to Beginso: ${verifyReturnUrl}\n\nIf you didn't create this account, you can safely ignore this email.`;
+      textContent = `Verify your email\n\nWelcome to Beginso.\n\nUse the verification code below to complete your account setup:\n\n${formattedCode}\n\nThis code expires in 10 minutes.\n\nReturn to Beginso: ${verifyReturnUrl}\n\nIf you didn't create this account, you can safely ignore this email.`;
 
       htmlContent = `
-        <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F9FAFB; padding: 40px 20px; color: #1F2937;">
-          <div style="max-width: 560px; margin: 0 auto; background-color: #ffffff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 36px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="margin-bottom: 24px;">
-              <span style="font-size: 24px; font-weight: 800; color: #1D4ED8; letter-spacing: -0.5px;">Beginso</span>
-            </div>
-            <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 12px 0;">Verify your email</h1>
-            <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 8px 0;">Welcome to Beginso.</p>
-            <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 24px 0;">Use the verification code below to complete your account setup.</p>
-            
-            <div style="margin: 28px 0; padding: 20px; background-color: #F3F4F6; border-radius: 10px; text-align: center;">
-              <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1D4ED8; font-family: monospace;">${formattedCode}</span>
-            </div>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${subject}</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #F3F4F6; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F3F4F6; padding: 40px 16px;">
+            <tr>
+              <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 540px; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #E5E7EB; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);">
+                  <!-- Header Gradient Bar -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%); height: 8px;"></td>
+                  </tr>
+                  
+                  <!-- Main Content Area -->
+                  <tr>
+                    <td style="padding: 40px 36px 36px 36px;">
+                      <!-- Logo -->
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+                        <tr>
+                          <td>
+                            <span style="font-size: 26px; font-weight: 800; color: #1E40AF; letter-spacing: -0.8px; display: inline-flex; align-items: center;">
+                              Beginso
+                              <span style="display: inline-block; width: 6px; height: 6px; background-color: #2563EB; border-radius: 50%; margin-left: 4px;"></span>
+                            </span>
+                          </td>
+                        </tr>
+                      </table>
 
-            <p style="font-size: 14px; color: #6B7280; margin: 0 0 28px 0;">This code expires in 10 minutes.</p>
-            
-            <div style="margin: 28px 0 32px 0;">
-              <a href="${verifyReturnUrl}" style="background-color: #2563EB; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block;">Return to Beginso</a>
-            </div>
+                      <!-- Heading & Copy -->
+                      <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 12px 0; letter-spacing: -0.3px;">Verify your email</h1>
+                      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 6px 0;">Welcome to Beginso.</p>
+                      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 28px 0;">Use the verification code below to complete your account setup.</p>
 
-            <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 32px 0 24px 0;" />
-            <p style="font-size: 13px; color: #9CA3AF; margin: 0; line-height: 1.5;">If you didn't create this account, you can safely ignore this email.</p>
-          </div>
-        </div>
+                      <!-- 6-Digit OTP Code Box -->
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
+                        <tr>
+                          <td align="center" style="background-color: #EFF6FF; border: 1.5px dashed #BFDBFE; border-radius: 12px; padding: 24px 16px;">
+                            <span style="font-family: 'JetBrains Mono', 'Courier New', Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #1E40AF;">${formattedCode}</span>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <p style="font-size: 13px; color: #6B7280; margin: 0 0 32px 0; text-align: center;">⏱️ This code expires in <strong>10 minutes</strong>.</p>
+
+                      <!-- Primary CTA Button -->
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
+                        <tr>
+                          <td align="center">
+                            <a href="${verifyReturnUrl}" target="_blank" style="background-color: #2563EB; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px; display: inline-block; box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.35);">Return to Beginso</a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Security Shield Card -->
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
+                        <tr>
+                          <td style="font-size: 13px; color: #6B7280; line-height: 1.5;">
+                            🛡️ <strong>Security Tip:</strong> Never share your verification code with anyone. Beginso staff will never ask for it.
+                          </td>
+                        </tr>
+                      </table>
+
+                      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 28px 0 20px 0;" />
+                      
+                      <!-- Footer -->
+                      <p style="font-size: 12px; color: #9CA3AF; margin: 0; line-height: 1.5; text-align: center;">
+                        If you didn't create this account, you can safely ignore this email.<br/>
+                        &copy; ${new Date().getFullYear()} Beginso Inc. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `;
     } else if (template === "reset_password") {
       subject = "Reset your Beginso password";
@@ -85,23 +143,82 @@ class MailService {
       textContent = `Reset your password\n\nWe received a request to reset your Beginso password.\n\nClick the link below to create a new password:\n${resetUrl}\n\nIf you didn't request this change, you can safely ignore this email.`;
 
       htmlContent = `
-        <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F9FAFB; padding: 40px 20px; color: #1F2937;">
-          <div style="max-width: 560px; margin: 0 auto; background-color: #ffffff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 36px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="margin-bottom: 24px;">
-              <span style="font-size: 24px; font-weight: 800; color: #1D4ED8; letter-spacing: -0.5px;">Beginso</span>
-            </div>
-            <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 12px 0;">Reset your password</h1>
-            <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 8px 0;">We received a request to reset your Beginso password.</p>
-            <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 28px 0;">Click the button below to create a new password.</p>
-            
-            <div style="margin: 28px 0 32px 0;">
-              <a href="${resetUrl}" style="background-color: #2563EB; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block;">Reset password</a>
-            </div>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${subject}</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #F3F4F6; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F3F4F6; padding: 40px 16px;">
+            <tr>
+              <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 540px; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #E5E7EB; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);">
+                  <!-- Header Gradient Bar -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%); height: 8px;"></td>
+                  </tr>
+                  
+                  <!-- Main Content Area -->
+                  <tr>
+                    <td style="padding: 40px 36px 36px 36px;">
+                      <!-- Logo -->
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+                        <tr>
+                          <td>
+                            <span style="font-size: 26px; font-weight: 800; color: #1E40AF; letter-spacing: -0.8px; display: inline-flex; align-items: center;">
+                              Beginso
+                              <span style="display: inline-block; width: 6px; height: 6px; background-color: #2563EB; border-radius: 50%; margin-left: 4px;"></span>
+                            </span>
+                          </td>
+                        </tr>
+                      </table>
 
-            <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 32px 0 24px 0;" />
-            <p style="font-size: 13px; color: #9CA3AF; margin: 0; line-height: 1.5;">If you didn't request this change, you can safely ignore this email.</p>
-          </div>
-        </div>
+                      <!-- Heading & Copy -->
+                      <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 12px 0; letter-spacing: -0.3px;">Reset your password</h1>
+                      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 8px 0;">We received a request to reset your Beginso password.</p>
+                      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin: 0 0 28px 0;">Click the button below to create a new password.</p>
+
+                      <!-- Primary CTA Button -->
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+                        <tr>
+                          <td align="center">
+                            <a href="${resetUrl}" target="_blank" style="background-color: #2563EB; color: #ffffff; padding: 14px 36px; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px; display: inline-block; box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.35);">Reset password</a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Direct Link Fallback -->
+                      <div style="background-color: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 10px; padding: 16px; margin-bottom: 28px;">
+                        <p style="font-size: 12px; color: #6B7280; margin: 0 0 6px 0; font-weight: 600;">Button not working? Copy and paste this link into your browser:</p>
+                        <a href="${resetUrl}" target="_blank" style="font-size: 12px; color: #2563EB; word-break: break-all; text-decoration: underline;">${resetUrl}</a>
+                      </div>
+
+                      <!-- Security Notice Card -->
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #FEF2F2; border: 1px solid #FEE2E2; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
+                        <tr>
+                          <td style="font-size: 13px; color: #991B1B; line-height: 1.5;">
+                            🔒 <strong>Notice:</strong> If you didn't request a password reset, your password remains secure and unchanged. You can safely ignore this message.
+                          </td>
+                        </tr>
+                      </table>
+
+                      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 28px 0 20px 0;" />
+                      
+                      <!-- Footer -->
+                      <p style="font-size: 12px; color: #9CA3AF; margin: 0; line-height: 1.5; text-align: center;">
+                        If you didn't request this change, you can safely ignore this email.<br/>
+                        &copy; ${new Date().getFullYear()} Beginso Inc. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `;
     }
 
