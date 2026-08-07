@@ -22,6 +22,7 @@ This master document tracks all bug reports submitted by the frontend team along
 | **BUG-03** | `PATCH /api/responses/:id` | High | Response status update query matching zero docs | **FIXED & DEPLOYED** | Scoped update via `Form.exists` ownership check + `findByIdAndUpdate` with `$set`. |
 | **BUG-04** | `PATCH /api/responses/:id` | Medium | Frontend asked if reverting status to `"new"` fails | **VERIFIED & TESTED** | Reverting from `completed` or `in_progress` back to `new` is fully supported (`200 OK`). |
 | **BUG-05** | `GET /api/responses/:id/file/:fileId` | High | File download returned `401 Unauthorized access to private files` | **FIXED & DEPLOYED** | Multi-channel token parser (headers, `?token=`, cookies) + pre-attached `?token=` in returned URLs. |
+| **BUG-06** | Auth & Email Verification | High | Alignment conflict between Frontend & Backend mail verification | **DOCUMENTED & DEPLOYED** | Built 6-digit OTP verification + fallback signed links (`POST /api/auth/email-verification` & `/verify`), session gate `email_verified` enforcement, and created `docs/auth_email_verification_flow.md`. |
 
 ---
 

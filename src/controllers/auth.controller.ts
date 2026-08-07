@@ -491,9 +491,9 @@ export const requestForgotPassword = async (
 
         if (hasPasswordProvider && !fbUser.disabled) {
           if (checkResetRateLimit(normalizedEmail)) {
-            const appUrl = process.env.APP_URL || "https://app.beginso.com";
+            const appUrl = process.env.APP_URL || "https://beginso.com";
             const actionUrl = await getAuth().generatePasswordResetLink(normalizedEmail, {
-              url: `${appUrl}/login`,
+              url: `${appUrl}/reset-password`,
             });
             await mailService.sendMail({
               to: normalizedEmail,
