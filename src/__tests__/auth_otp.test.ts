@@ -7,6 +7,7 @@ import Workspace from "../models/Workspace";
 import Form from "../models/Form";
 import ResponseModel from "../models/Response";
 import AuthOtp from "../models/AuthOtp";
+import AuthTicket from "../models/AuthTicket";
 import { generateToken } from "../utils/generateToken";
 import { hashKey } from "../utils/rateLimiter";
 
@@ -84,7 +85,6 @@ describe("Auth OTP & Extended API Requirements", () => {
     const rawTicket = "opaque-reveal-ticket-1234567890-test-ticket";
     const ticketHash = hashKey(rawTicket);
 
-    const AuthTicket = (await import("../models/AuthTicket")).default;
     await AuthTicket.create({
       firebaseUid: "auth-otp-user-a",
       purpose: "reveal_verify_email_code",
