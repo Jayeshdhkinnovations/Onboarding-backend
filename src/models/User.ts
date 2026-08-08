@@ -1,9 +1,19 @@
 import mongoose, { Schema, Document } from "mongoose";
+export interface ILoginLocation {
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 export interface ILoginEntry {
   timestamp: Date;
   ip: string;
   userAgent: string;
+  location?: ILoginLocation | null;
 }
+
 export interface IUser extends Document {
   firebaseUid: string;
   fullName: string;
@@ -71,6 +81,13 @@ const UserSchema = new Schema<IUser>(
         timestamp: { type: Date, default: Date.now },
         ip: { type: String, default: "unknown" },
         userAgent: { type: String, default: "unknown" },
+        location: {
+          city: { type: String, default: null },
+          region: { type: String, default: null },
+          country: { type: String, default: null },
+          latitude: { type: Number, default: null },
+          longitude: { type: Number, default: null },
+        },
       },
     ],
   },

@@ -378,12 +378,27 @@ export class SuperAdminService {
             timestamp: e.timestamp,
             ip: e.ip || "unknown",
             userAgent: e.userAgent || "unknown",
+            location:
+              e.location &&
+              e.location.latitude != null &&
+              e.location.longitude != null &&
+              !isNaN(e.location.latitude) &&
+              !isNaN(e.location.longitude)
+                ? {
+                    city: e.location.city ?? null,
+                    region: e.location.region ?? null,
+                    country: e.location.country ?? null,
+                    latitude: e.location.latitude,
+                    longitude: e.location.longitude,
+                  }
+                : null,
           }))
         : [
             {
               timestamp: (admin as any).lastLogin || (admin as any).updatedAt || (admin as any).createdAt,
               ip: "unknown",
               userAgent: "unknown",
+              location: null,
             },
           ],
     };
