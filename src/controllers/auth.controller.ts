@@ -13,6 +13,7 @@ import { generateToken } from "../utils/generateToken";
 import { mailService } from "../services/mail.service";
 import { checkVerificationRateLimit, checkResetRateLimit, hashKey } from "../utils/rateLimiter";
 import { resolveIpLocation } from "../services/geolocation.service";
+import { recordMailLog } from "../models/MailLog";
 
 export const signup = async (
   req: Request,
@@ -365,7 +366,6 @@ export const requestEmailVerification = async (
           firebaseUid: uid,
         });
       } else {
-        const { recordMailLog } = await import("../models/MailLog");
         recordMailLog({
           template: "verification",
           outcome: "rate_limited",
@@ -611,7 +611,6 @@ export const requestForgotPassword = async (
               firebaseUid: fbUser.uid,
             });
           } else {
-            const { recordMailLog } = await import("../models/MailLog");
             recordMailLog({
               template: "password_reset",
               outcome: "rate_limited",
