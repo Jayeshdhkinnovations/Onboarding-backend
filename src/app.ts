@@ -21,9 +21,11 @@ const app = express();
 
 const defaultAllowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:3001",
   "http://localhost:5000",
   "https://beginso.com",
   "https://app.beginso.com",
+  "https://admin.beginso.com",
   "https://www.beginso.com",
 ];
 
@@ -35,12 +37,25 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (server-to-server, curl, mobile, same-origin)
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        // Return false so CORS rejects the origin cleanly without throwing 500 error
-        callback(null, false);
+      if (!origin) {
+        return callback(null, true);
       }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Dynamically allow any *.beginso.com, *.dhkinnovations.com, or *.vercel.app domain
+      if (
+        /^https:\/\/([a-zA-Z0-9-]+\.)*beginso\.com$/.test(origin) ||
+        /^https:\/\/([a-zA-Z0-9-]+\.)*dhkinnovations\.com$/.test(origin) ||
+        /^https:\/\/([a-zA-Z0-9-]+\.)*vercel\.app$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+
+      // Return false so CORS rejects origin cleanly without 500 error
+      callback(null, false);
     },
     credentials: true,
   })
