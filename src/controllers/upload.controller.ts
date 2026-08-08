@@ -6,6 +6,8 @@ import { AuthenticatedRequest } from "../middleware/auth.middleware";
 import Upload from "../models/Upload";
 import User from "../models/User";
 import Workspace from "../models/Workspace";
+import Form from "../models/Form";
+import ResponseModel from "../models/Response";
 import { UploadResponse } from "../types/upload";
 
 // ponytail: This implementation utilizes local disk storage for keeping uploaded assets.
@@ -320,9 +322,9 @@ export const getFile = async (
         if (!isAuthorized && userWorkspaceId) {
           const responseIdMatch = forwardSlashPath.match(/\/responses\/([0-9a-fA-F]{24})\//);
           if (responseIdMatch && responseIdMatch[1]) {
-            const responseDoc = await (await import("../models/Response")).default.findById(responseIdMatch[1]);
+            const responseDoc = await ResponseModel.findById(responseIdMatch[1]);
             if (responseDoc) {
-              const formDoc = await (await import("../models/Form")).default.findById(responseDoc.formId);
+              const formDoc = await Form.findById(responseDoc.formId);
               if (formDoc && formDoc.workspaceId.toString() === userWorkspaceId) {
                 isAuthorized = true;
               }
@@ -332,7 +334,7 @@ export const getFile = async (
           if (!isAuthorized) {
             const formIdMatch = forwardSlashPath.match(/\/([0-9a-fA-F]{24})\//);
             if (formIdMatch && formIdMatch[1]) {
-              const formDoc = await (await import("../models/Form")).default.findById(formIdMatch[1]);
+              const formDoc = await Form.findById(formIdMatch[1]);
               if (formDoc && formDoc.workspaceId.toString() === userWorkspaceId) {
                 isAuthorized = true;
               }
