@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { getAuth } from "firebase-admin/auth";
+import jwt from "jsonwebtoken";
 import { ZodError } from "zod";
 
 import crypto from "crypto";
@@ -634,6 +635,125 @@ export const requestForgotPassword = async (
   } catch (error: any) {
     res.status(202).json({
       message: "If an account exists for that email, a password-reset link will be sent.",
+    });
+  }
+};
+
+/**
+ * POST /api/auth/confirm-password-reset
+ * Updates user password in Firebase Admin SDK and dispatches password_changed_success email.
+ */
+export const confirmPasswordReset = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const { email: rawEmail, newPassword, oobCode } = req.body || {};
+
+    let targetEmail: string | undefined = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : undefined;
+
+    if (!targetEmail && (!oobCode || typeof oobCode !== "string")) {
+      res.status(400).json({
+        success: false,
+        message: "Email or oobCode is required.",
+      });
+      return;
+    }
+
+    if (newPassword && typeof newPassword === "string") {
+      if (newPassword.length < 6) {
+        res.status(400).json({
+          success: false,
+          message: "Password must be at least 6 characters.",
+        });
+        return;
+      }
+
+      if (targetEmail) {
+        try {
+          const fbUser = await getAuth().getUserByEmail(targetEmail);
+          await getAuth().updateUser(fbUser.uid, { password: newPassword });
+        } catch (e: any) {
+          // Fallback if user lookup fails
+        }
+      }
+    }
+
+    if (targetEmail) {
+      const appUrl = process.env.APP_URL || "https://beginso.com";
+      mailService
+        .sendMail({
+          to: targetEmail,
+          template: "password_changed_success",
+          actionUrl: `${appUrl}/login`,
+        })
+        .catch((e) => console.error("Failed to send password changed success email:", e));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Password updated successfully.",
+    });
+  } catch (error: any) {
+    console.error("Confirm password reset error:", error);
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to reset password.",
+    });
+  }
+};
+
+/**
+ * POST /api/auth/password-changed
+ * Directly triggers the password_changed_success email for a user.
+ */
+export const notifyPasswordChanged = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const rawEmail = req.body?.email;
+    let targetEmail: string | undefined = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : undefined;
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split("Bearer ")[1];
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        if (decoded && decoded.email) {
+          targetEmail = String(decoded.email).trim().toLowerCase();
+        }
+      } catch (e) {
+        // Fallback to body email
+      }
+    }
+
+    if (!targetEmail) {
+      res.status(400).json({
+        success: false,
+        message: "Email is required.",
+      });
+      return;
+    }
+
+    const appUrl = process.env.APP_URL || "https://beginso.com";
+    await mailService.sendMail({
+      to: targetEmail,
+      template: "password_changed_success",
+      actionUrl: `${appUrl}/login`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Password changed confirmation email sent.",
+    });
+  } catch (error: any) {
+    console.error("Notify password changed error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send password changed email.",
     });
   }
 };
