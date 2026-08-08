@@ -243,7 +243,12 @@ export const session = async (
 
     // Update lastLogin + push login history entry with resolved IP location (keep last 5)
     const ip = getRealClientIp(req);
-    const userAgent = req.headers["user-agent"] || "unknown";
+    const userAgent =
+      (req.body && typeof req.body === "object" && req.body.userAgent) ||
+      (req.headers["x-client-user-agent"] as string) ||
+      (req.headers["x-user-agent"] as string) ||
+      req.headers["user-agent"] ||
+      "unknown";
     const location = await resolveIpLocation(ip);
 
     await User.findByIdAndUpdate(user!._id, {
