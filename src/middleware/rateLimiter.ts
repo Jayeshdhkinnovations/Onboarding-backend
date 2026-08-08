@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import crypto from "crypto";
 import { SystemLog } from "../models/SystemLog";
+import { getRealClientIp, hashIp } from "../utils/ip";
 
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
@@ -17,9 +17,8 @@ export const submitRateLimiter = (req: Request, res: Response, next: NextFunctio
     return next();
   }
 
-  const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-  const ipStr = Array.isArray(ip) ? ip[0] : (typeof ip === "string" ? ip : "unknown");
-  const hashedIp = crypto.createHash("sha256").update(ipStr).digest("hex");
+  const clientIp = getRealClientIp(req);
+  const hashedIp = hashIp(clientIp);
   const key = `${hashedIp}:${slug}`;
 
   const now = Date.now();

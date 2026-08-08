@@ -18,6 +18,7 @@ import { errorHandler } from "./middleware/error.middleware";
 
 // Continuous Deployment Test Comment
 const app = express();
+app.set("trust proxy", true);
 
 const defaultAllowedOrigins = [
   "http://localhost:3000",

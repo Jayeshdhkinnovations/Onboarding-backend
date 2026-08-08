@@ -9,6 +9,7 @@ import Upload from "../models/Upload";
 import path from "path";
 import fs from "fs";
 import { getUploadDir } from "./upload.controller";
+import { getRealClientIp, hashIp } from "../utils/ip";
 
 const formService = new FormService();
 
@@ -803,9 +804,8 @@ export const submitPublicForm = async (
 
     // Honeypot check for bots (silent discard)
     if (_hp) {
-      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-      const ipStr = Array.isArray(ip) ? ip[0] : (typeof ip === "string" ? ip : "unknown");
-      const hashedIp = crypto.createHash("sha256").update(ipStr).digest("hex");
+      const clientIp = getRealClientIp(req);
+      const hashedIp = hashIp(clientIp);
 
       SystemLog.create({
         level: "warn",
@@ -944,9 +944,8 @@ export const submitPublicForm = async (
     }
 
     // Calculate client IP hash (SHA-256, never raw IP)
-    const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-    const ipStr = Array.isArray(ip) ? ip[0] : (typeof ip === "string" ? ip : "unknown");
-    const hashedIp = crypto.createHash("sha256").update(ipStr).digest("hex");
+    const clientIp = getRealClientIp(req);
+    const hashedIp = hashIp(clientIp);
 
     // Call dynamic validation and persistence routine in formService
     const ctx = (req as any).uploadContext;

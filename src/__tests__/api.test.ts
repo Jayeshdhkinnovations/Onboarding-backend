@@ -443,6 +443,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 3. Submit Form (fails validation because required field 'Full Name' is missing)
       const badSubRes1 = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Favorite color": "Blue" } });
 
       expect(badSubRes1.status).toBe(422);
@@ -452,6 +453,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 4. Submit Form (fails validation because dropdown selection is invalid)
       const badSubRes2 = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Full Name": "Jayesh", "Favorite color": "Yellow" } });
 
       expect(badSubRes2.status).toBe(422);
@@ -461,6 +463,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 5. Submit Form (Success)
       const goodSubRes = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Full Name": "Jayesh", "Favorite color": "Blue" } });
 
       expect(goodSubRes.status).toBe(201);
@@ -616,9 +619,19 @@ describe("Onboarding Platform Integration Tests", () => {
 
   describe("Global Error Handling Middleware", () => {
     it("Catch mongoose invalid ObjectId casts globally", async () => {
-      // requesting a form submission with malformed/invalid ObjectId format
+      const user = await User.create({
+        firebaseUid: "cast-test-uid",
+        fullName: "Cast Test User",
+        email: "cast_test@test.com",
+        role: "admin",
+      });
+      const token = jwt.sign(
+        { id: user._id.toString(), email: user.email, role: user.role },
+        process.env.JWT_SECRET!
+      );
       const res = await request(app)
         .post("/api/forms/invalid-objectid-format/submissions")
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: {} });
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -1049,6 +1062,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 1. Check required validation
       const badReq = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: {} });
       expect(badReq.status).toBe(422);
       expect(badReq.body.message).toContain("Validation failed");
@@ -1057,12 +1071,14 @@ describe("Onboarding Platform Integration Tests", () => {
       // 2. Check Text length validations
       const badTextShort = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "ab", "Email": "a@b.com" } });
       expect(badTextShort.status).toBe(422);
       expect(badTextShort.body.errors[0].message).toContain("must be at least 3 characters");
 
       const badTextLong = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdefghi", "Email": "a@b.com" } });
       expect(badTextLong.status).toBe(422);
       expect(badTextLong.body.errors[0].message).toContain("cannot exceed 8 characters");
@@ -1070,6 +1086,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 3. Check Email format validation
       const badEmail = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "invalid-email" } });
       expect(badEmail.status).toBe(422);
       expect(badEmail.body.errors[0].message).toContain("must be a valid email address");
@@ -1077,6 +1094,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 4. Check Phone pattern validation
       const badPhone = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Phone": "12345" } });
       expect(badPhone.status).toBe(422);
       expect(badPhone.body.errors[0].message).toContain("must match format pattern");
@@ -1084,12 +1102,14 @@ describe("Onboarding Platform Integration Tests", () => {
       // 5. Check Number bounds validation
       const badNumMin = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Number": 5 } });
       expect(badNumMin.status).toBe(422);
       expect(badNumMin.body.errors[0].message).toContain("must be at least 10");
 
       const badNumMax = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Number": 25 } });
       expect(badNumMax.status).toBe(422);
       expect(badNumMax.body.errors[0].message).toContain("cannot exceed 20");
@@ -1097,12 +1117,14 @@ describe("Onboarding Platform Integration Tests", () => {
       // 6. Check Date limits validation
       const badDateMin = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Date": "2026-05-15" } });
       expect(badDateMin.status).toBe(422);
       expect(badDateMin.body.errors[0].message).toContain("cannot be earlier than 2026-06-01");
 
       const badDateMax = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Date": "2026-07-01" } });
       expect(badDateMax.status).toBe(422);
       expect(badDateMax.body.errors[0].message).toContain("cannot be later than 2026-06-30");
@@ -1110,6 +1132,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 7. Check Dropdown / MultipleChoice validation
       const badDropdown = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "Dropdown": "C" } });
       expect(badDropdown.status).toBe(422);
       expect(badDropdown.body.errors[0].message).toContain("not a valid option");
@@ -1117,12 +1140,14 @@ describe("Onboarding Platform Integration Tests", () => {
       // 8. Check Checkbox validation (single boolean vs multi-select array)
       const badCheckboxSingle = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "CheckboxSingle": "yes" } });
       expect(badCheckboxSingle.status).toBe(422);
       expect(badCheckboxSingle.body.errors[0].message).toContain("must be a boolean");
 
       const badCheckboxMulti = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({ answers: { "Text": "abcdef", "Email": "a@b.com", "CheckboxMulti": ["Green"] } });
       expect(badCheckboxMulti.status).toBe(422);
       expect(badCheckboxMulti.body.errors[0].message).toContain("not a valid option for checkbox field");
@@ -1130,6 +1155,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 9. Check File upload validation
       const badFileSize = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({
           answers: {
             "Text": "abcdef",
@@ -1142,6 +1168,7 @@ describe("Onboarding Platform Integration Tests", () => {
 
       const badFileMime = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({
           answers: {
             "Text": "abcdef",
@@ -1155,6 +1182,7 @@ describe("Onboarding Platform Integration Tests", () => {
       // 10. Valid Submission (Success)
       const goodRes = await request(app)
         .post(`/api/forms/${formId}/submissions`)
+        .set("Authorization", `Bearer ${token}`)
         .send({
           answers: {
             "Text": "abcdef",

@@ -14,6 +14,7 @@ import { mailService } from "../services/mail.service";
 import { checkVerificationRateLimit, checkResetRateLimit, hashKey } from "../utils/rateLimiter";
 import { resolveIpLocation } from "../services/geolocation.service";
 import { recordMailLog } from "../models/MailLog";
+import { getRealClientIp } from "../utils/ip";
 
 export const signup = async (
   req: Request,
@@ -241,7 +242,7 @@ export const session = async (
     }
 
     // Update lastLogin + push login history entry with resolved IP location (keep last 5)
-    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+    const ip = getRealClientIp(req);
     const userAgent = req.headers["user-agent"] || "unknown";
     const location = await resolveIpLocation(ip);
 

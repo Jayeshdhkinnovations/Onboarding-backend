@@ -539,6 +539,7 @@ describe("Form API Property-Based Testing", () => {
 
         const submitRes = await request(app)
           .post(`/api/forms/${formId}/submissions`)
+          .set("Authorization", `Bearer ${tokenA}`)
           .send({ answers });
         if (submitRes.status !== 201) {
           console.log("SUBMIT STATUS:", submitRes.status);
