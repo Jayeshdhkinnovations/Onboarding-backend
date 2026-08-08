@@ -182,6 +182,7 @@ describe("Auth OTP & Extended API Requirements", () => {
 
     const res = await request(app)
       .post(`/api/forms/${closedForm._id}/submissions`)
+      .set("Authorization", `Bearer ${userAToken}`)
       .send({ answers: {} });
 
     expect(res.status).toBe(404);

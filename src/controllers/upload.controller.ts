@@ -277,25 +277,28 @@ export const getFile = async (
         }
 
         // Workspace authorization check for private files with owner metadata
-        if (uploadDoc && uploadDoc.owner) {
+        const userId = user._id.toString();
+        let userWorkspaceId = user.workspaceId
+          ? (user.workspaceId._id ? user.workspaceId._id.toString() : user.workspaceId.toString())
+          : "";
+        
+        if (!userWorkspaceId) {
+          const userWs = await Workspace.findOne({ owner: userId });
+          if (userWs) userWorkspaceId = userWs._id.toString();
+        }
+
+        let isAuthorized = user.role === "super_admin";
+
+        if (!isAuthorized && uploadDoc && uploadDoc.owner) {
           const ownerId = uploadDoc.owner.toString();
-          const userId = user._id.toString();
-          
-          let userWorkspaceId = user.workspaceId
-            ? (user.workspaceId._id ? user.workspaceId._id.toString() : user.workspaceId.toString())
-            : "";
-          
-          if (!userWorkspaceId) {
-            const userWs = await Workspace.findOne({ owner: userId });
-            if (userWs) userWorkspaceId = userWs._id.toString();
+          if (userId === ownerId) {
+            isAuthorized = true;
           }
 
-          let isAuthorized = userId === ownerId || user.role === "super_admin";
-          
-          if (!isAuthorized) {
+          if (!isAuthorized && userWorkspaceId) {
             const ownerWs = await Workspace.findOne({ owner: ownerId });
             const ownerWsId = ownerWs ? ownerWs._id.toString() : "";
-            if (userWorkspaceId && ownerWsId && userWorkspaceId === ownerWsId) {
+            if (ownerWsId && userWorkspaceId === ownerWsId) {
               isAuthorized = true;
             }
           }
@@ -311,15 +314,39 @@ export const getFile = async (
               isAuthorized = true;
             }
           }
+        }
+
+        // Additional path-based workspace resolution (extract responseId or formId from URL path)
+        if (!isAuthorized && userWorkspaceId) {
+          const responseIdMatch = forwardSlashPath.match(/\/responses\/([0-9a-fA-F]{24})\//);
+          if (responseIdMatch && responseIdMatch[1]) {
+            const responseDoc = await (await import("../models/Response")).default.findById(responseIdMatch[1]);
+            if (responseDoc) {
+              const formDoc = await (await import("../models/Form")).default.findById(responseDoc.formId);
+              if (formDoc && formDoc.workspaceId.toString() === userWorkspaceId) {
+                isAuthorized = true;
+              }
+            }
+          }
 
           if (!isAuthorized) {
-            res.status(403).json({
-              success: false,
-              message: "Forbidden: You do not have permission to access this file",
-              error: { message: "Forbidden: You do not have permission to access this file" },
-            });
-            return;
+            const formIdMatch = forwardSlashPath.match(/\/([0-9a-fA-F]{24})\//);
+            if (formIdMatch && formIdMatch[1]) {
+              const formDoc = await (await import("../models/Form")).default.findById(formIdMatch[1]);
+              if (formDoc && formDoc.workspaceId.toString() === userWorkspaceId) {
+                isAuthorized = true;
+              }
+            }
           }
+        }
+
+        if (!isAuthorized) {
+          res.status(403).json({
+            success: false,
+            message: "Forbidden: You do not have permission to access this file",
+            error: { message: "Forbidden: You do not have permission to access this file" },
+          });
+          return;
         }
       } catch (err) {
         res.status(401).json({
