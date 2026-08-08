@@ -362,6 +362,17 @@ export const requestEmailVerification = async (
           to: email,
           template: "verify_email_otp",
           actionUrl,
+          firebaseUid: uid,
+        });
+      } else {
+        const { recordMailLog } = await import("../models/MailLog");
+        recordMailLog({
+          template: "verification",
+          outcome: "rate_limited",
+          email,
+          firebaseUid: uid,
+          provider: "smtp",
+          errorCode: "RATE_LIMITED",
         });
       }
     }
@@ -597,6 +608,17 @@ export const requestForgotPassword = async (
               to: normalizedEmail,
               template: "reset_password",
               actionUrl,
+              firebaseUid: fbUser.uid,
+            });
+          } else {
+            const { recordMailLog } = await import("../models/MailLog");
+            recordMailLog({
+              template: "password_reset",
+              outcome: "rate_limited",
+              email: normalizedEmail,
+              firebaseUid: fbUser.uid,
+              provider: "smtp",
+              errorCode: "RATE_LIMITED",
             });
           }
         }

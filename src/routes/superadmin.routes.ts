@@ -3,6 +3,7 @@ import {
   getStats,
   getAbuse,
   getLogs,
+  getMailLogs,
   getAdmins,
   getAdminDetail,
   createAdmin,
@@ -20,6 +21,7 @@ router.use(protect as any, requireSuperAdmin as any);
 router.get("/stats", getStats);
 router.get("/abuse", getAbuse);
 router.get("/logs", getLogs);
+router.get("/mail-logs", getMailLogs);
 router.get("/admins", getAdmins);
 router.get("/admins/:id", getAdminDetail);
 router.post("/admins", createAdmin);

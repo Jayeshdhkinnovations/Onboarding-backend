@@ -5,6 +5,7 @@ import ResponseModel from "../models/Response";
 import Upload from "../models/Upload";
 import { SystemLog } from "../models/SystemLog";
 import { AuditLog } from "../models/AuditLog";
+import { MailLog } from "../models/MailLog";
 import { auth } from "../config/firebase";
 import fs from "fs";
 import path from "path";
@@ -254,6 +255,67 @@ export class SuperAdminService {
 
     return {
       logs: sanitizedLogs,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages,
+      },
+    };
+  }
+
+  async getMailLogs(filters: {
+    template?: string;
+    outcome?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query: any = {};
+
+    if (filters.template) {
+      query.template = filters.template;
+    }
+
+    if (filters.outcome) {
+      query.outcome = filters.outcome;
+    }
+
+    if (filters.search && filters.search.trim() !== "") {
+      query.requestId = { $regex: filters.search.trim(), $options: "i" };
+    }
+
+    if (filters.from || filters.to) {
+      query.createdAt = {};
+      if (filters.from) {
+        query.createdAt.$gte = new Date(filters.from);
+      }
+      if (filters.to) {
+        query.createdAt.$lte = new Date(filters.to);
+      }
+    }
+
+    let page = Number(filters.page) || 1;
+    let limit = Number(filters.limit) || 50;
+
+    if (limit > 100) limit = 100;
+    if (limit < 1) limit = 50;
+    if (page < 1) page = 1;
+
+    const skip = (page - 1) * limit;
+
+    const total = await MailLog.countDocuments(query);
+    const logs = await MailLog.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const pages = Math.ceil(total / limit) || (total === 0 ? 0 : 1);
+
+    return {
+      mailLogs: logs,
       pagination: {
         total,
         page,

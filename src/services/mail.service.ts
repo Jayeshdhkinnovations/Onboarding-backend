@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import crypto from "crypto";
+import { recordMailLog } from "../models/MailLog";
 
 export type AuthMailType =
   | "verify_email"
@@ -14,6 +16,8 @@ export interface SendMailOptions {
   actionUrl?: string;
   code?: string;
   name?: string;
+  firebaseUid?: string;
+  requestId?: string;
 }
 
 class MailService {
@@ -41,12 +45,23 @@ class MailService {
   }
 
   async sendMail(options: SendMailOptions): Promise<void> {
+    const startTime = Date.now();
+    const reqId = options.requestId || `req_${crypto.randomBytes(8).toString("hex")}`;
     const fromName = process.env.SMTP_FROM_NAME || "Beginso";
     const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "no-reply@beginso.com";
     const from = `"${fromName}" <${fromEmail}>`;
     const appUrl = process.env.APP_URL || "https://beginso.com";
 
-    const { to, template, actionUrl, code, name } = options;
+    const { to, template, actionUrl, code, name, firebaseUid } = options;
+
+    let mappedLogTemplate: "verification" | "password_reset" | "welcome" | null = null;
+    if (template === "verify_email" || template === "verify_email_otp") {
+      mappedLogTemplate = "verification";
+    } else if (template === "reset_password") {
+      mappedLogTemplate = "password_reset";
+    } else if (template === "welcome_user") {
+      mappedLogTemplate = "welcome";
+    }
 
     let subject = "";
     let htmlContent = "";
@@ -481,9 +496,33 @@ class MailService {
         html: htmlContent,
       });
       console.log(`✉️ Email sent successfully to ${to} [template: ${template}]`);
+
+      if (mappedLogTemplate) {
+        await recordMailLog({
+          template: mappedLogTemplate,
+          outcome: "sent",
+          email: to,
+          firebaseUid,
+          requestId: reqId,
+          provider: "smtp",
+          latencyMs: Date.now() - startTime,
+        });
+      }
     } catch (err: any) {
       console.error(`❌ Failed to send ${template} email to ${to}:`, err.message);
-      // Log internally without leaking credentials or details to caller
+
+      if (mappedLogTemplate) {
+        await recordMailLog({
+          template: mappedLogTemplate,
+          outcome: "failed",
+          email: to,
+          firebaseUid,
+          requestId: reqId,
+          provider: "smtp",
+          errorCode: err.code || err.name || "PROVIDER_ERROR",
+          latencyMs: Date.now() - startTime,
+        });
+      }
     }
   }
 }

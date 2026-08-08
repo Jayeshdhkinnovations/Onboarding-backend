@@ -48,6 +48,27 @@ export const getLogs = async (req: Request, res: Response, next: NextFunction): 
   }
 };
 
+export const getMailLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { template, outcome, from, to, search, page, limit } = req.query;
+    const mailLogsData = await superAdminService.getMailLogs({
+      template: template ? String(template) : undefined,
+      outcome: outcome ? String(outcome) : undefined,
+      from: from ? String(from) : undefined,
+      to: to ? String(to) : undefined,
+      search: search ? String(search) : undefined,
+      page: page ? parseInt(String(page), 10) : undefined,
+      limit: limit ? parseInt(String(limit), 10) : undefined,
+    });
+    res.status(200).json({
+      success: true,
+      ...mailLogsData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getAdmins = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { page, limit, search, status } = req.query;
