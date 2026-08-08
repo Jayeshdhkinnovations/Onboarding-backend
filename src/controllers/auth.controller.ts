@@ -215,6 +215,17 @@ export const session = async (
 
       // Populate workspaceId
       user = await User.findById(user._id).populate("workspaceId") as any;
+
+      // Send Welcome Onboarding Email asynchronously
+      const appUrl = process.env.APP_URL || "https://beginso.com";
+      if (user) {
+        mailService.sendMail({
+          to: user.email,
+          template: "welcome_user",
+          name: user.fullName,
+          actionUrl: `${appUrl}/dashboard`,
+        }).catch((e) => console.error("Failed to send welcome email:", e));
+      }
     }
 
     // Block suspended users at login
