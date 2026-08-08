@@ -108,4 +108,15 @@ describe("IP Geolocation Resolution & Super Admin Integration", () => {
     expect(privateEntry).toBeDefined();
     expect(privateEntry.location).toBeNull();
   });
+
+  it("should extract client IP from first hop of x-forwarded-for even if x-real-ip contains proxy IP", () => {
+    const { getRealClientIp } = require("../utils/ip");
+    const mockReq: any = {
+      headers: {
+        "x-real-ip": "34.205.78.180", // Proxy IP set by Nginx
+        "x-forwarded-for": "103.42.193.24, 34.205.78.180", // Real client IP first, proxy IP second
+      },
+    };
+    expect(getRealClientIp(mockReq)).toBe("103.42.193.24");
+  });
 });
