@@ -66,7 +66,7 @@ export class ResponseRepository {
     return await ResponseModel.findByIdAndUpdate(
       id,
       { $set: { status } },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
   }
 

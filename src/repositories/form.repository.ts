@@ -50,7 +50,7 @@ export class FormRepository {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new mongoose.Error.CastError("ObjectId", id, "_id");
     }
-    return await Form.findOneAndUpdate({ _id: id, workspaceId }, data, { new: true });
+    return await Form.findOneAndUpdate({ _id: id, workspaceId }, data, { returnDocument: "after" });
   }
 
   async delete(id: string, workspaceId: string): Promise<IForm | null> {

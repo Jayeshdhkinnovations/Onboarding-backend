@@ -1,0 +1,11 @@
+{
+  "_id": "6a7703245e9c16106ad80120",
+  "formId": "6a7703245e9c16106ad80114",
+  "answers": {
+    "Trigger": "other-value",
+    "Target": "should-be-persisted"
+  },
+  "createdAt": "2026-08-08T10:21:24.573Z",
+  "submittedAt": "2026-08-08T10:21:24.573Z",
+  "ipHash": "3e48ef9d22e096da6838540fb846999890462c8a32730a4f7a5eaee6945315f7"
+}
