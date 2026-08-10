@@ -11,6 +11,7 @@ import {
   confirmPasswordReset,
   notifyPasswordChanged,
 } from "../controllers/auth.controller";
+import { getSessions, revokeSession } from "../controllers/session.controller";
 import { protect, blockSuspended } from "../middleware/auth.middleware";
 
 const router = Router();
@@ -26,5 +27,7 @@ router.post("/password-changed", notifyPasswordChanged);
 router.post("/notify-password-changed", notifyPasswordChanged);
 router.post("/logout", protect as any, blockSuspended as any, logout);
 router.get("/me", protect as any, getMe);
+router.get("/sessions", protect as any, blockSuspended as any, getSessions);
+router.delete("/sessions/:id", protect as any, blockSuspended as any, revokeSession);
 
 export default router;

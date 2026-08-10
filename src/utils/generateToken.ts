@@ -4,8 +4,9 @@ export const generateToken = (
     id: string;
     email: string;
     role: string;
+    sessionId?: string;
   }
-)=> {
+) => {
   return jwt.sign(
     payload,
     process.env.JWT_SECRET as string,

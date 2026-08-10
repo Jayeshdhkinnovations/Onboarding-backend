@@ -2,8 +2,11 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import User, { IUser } from "../models/User";
 
+import SessionModel from "../models/Session";
+
 export interface AuthenticatedRequest extends Request {
   user?: IUser;
+  sessionId?: string;
 }
 
 export const protect = async (
@@ -57,7 +60,23 @@ export const protect = async (
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET as string
-    ) as { id: string; email: string; role: string };
+    ) as { id: string; email: string; role: string; sessionId?: string };
+
+    // Session Revocation Enforcement (closing the stateless logout gap)
+    if (decoded.sessionId) {
+      const session = await SessionModel.findById(decoded.sessionId);
+      if (!session || session.revokedAt) {
+        res.status(401).json({
+          success: false,
+          message: "Session has been revoked or expired",
+          error: { message: "Session has been revoked or expired" }
+        });
+        return;
+      }
+      session.lastActiveAt = new Date();
+      await session.save();
+      req.sessionId = decoded.sessionId;
+    }
 
     // Get user from database
     const user = await User.findById(decoded.id).populate("workspaceId");

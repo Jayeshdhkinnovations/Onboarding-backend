@@ -16,6 +16,7 @@ import { checkVerificationRateLimit, checkResetRateLimit, hashKey } from "../uti
 import { resolveIpLocation } from "../services/geolocation.service";
 import { recordMailLog } from "../models/MailLog";
 import { getRealClientIp } from "../utils/ip";
+import SessionModel, { hashIpAddress } from "../models/Session";
 
 export const signup = async (
   req: Request,
@@ -262,11 +263,43 @@ export const session = async (
       },
     });
 
-    // Generate custom JWT
+    // Record Session in MongoDB
+    const hashedIp = hashIpAddress(ip);
+    let deviceLabel = "Web Browser";
+    if (userAgent && userAgent !== "unknown") {
+      if (userAgent.includes("Chrome")) deviceLabel = "Chrome";
+      else if (userAgent.includes("Safari")) deviceLabel = "Safari";
+      else if (userAgent.includes("Firefox")) deviceLabel = "Firefox";
+      else if (userAgent.includes("Edge")) deviceLabel = "Edge";
+
+      if (userAgent.includes("Windows")) deviceLabel += " on Windows";
+      else if (userAgent.includes("Mac OS") || userAgent.includes("Macintosh")) deviceLabel += " on macOS";
+      else if (userAgent.includes("Android")) deviceLabel += " on Android";
+      else if (userAgent.includes("iPhone") || userAgent.includes("iPad")) deviceLabel += " on iOS";
+      else if (userAgent.includes("Linux")) deviceLabel += " on Linux";
+    }
+
+    const sessionDoc = await SessionModel.create({
+      userId: user!._id,
+      deviceLabel,
+      userAgent,
+      approxLocation: location ? {
+        city: location.city || undefined,
+        region: location.region || undefined,
+        country: location.country || undefined,
+        latitude: location.latitude || undefined,
+        longitude: location.longitude || undefined,
+      } : undefined,
+      ipHash: hashedIp,
+      lastActiveAt: new Date(),
+    });
+
+    // Generate custom JWT containing sessionId claim
     const jwtToken = generateToken({
       id: user!._id.toString(),
       email: user!.email,
       role: user!.role,
+      sessionId: sessionDoc._id.toString(),
     });
 
     res.cookie("token", jwtToken, {

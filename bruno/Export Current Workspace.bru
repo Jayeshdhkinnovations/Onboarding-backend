@@ -1,0 +1,17 @@
+meta {
+  name: Export Current Workspace
+  type: http
+  seq: 55
+}
+
+post {
+  url: {{base_url}}/api/workspaces/current/export
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 202
+  res.body.success: eq true
+  res.body.export: isDefined
+}

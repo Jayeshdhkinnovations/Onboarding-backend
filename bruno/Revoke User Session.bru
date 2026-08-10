@@ -1,0 +1,16 @@
+meta {
+  name: Revoke User Session
+  type: http
+  seq: 52
+}
+
+delete {
+  url: {{base_url}}/api/auth/sessions/{{session_id}}
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+}

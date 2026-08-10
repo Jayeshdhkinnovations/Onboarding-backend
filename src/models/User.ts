@@ -18,12 +18,15 @@ export interface IUser extends Document {
   firebaseUid: string;
   fullName: string;
   email: string;
+  avatarUrl?: string | null;
   role: "admin" | "super_admin";
   workspaceId: mongoose.Types.ObjectId;
   isActive: boolean;
   status: "active" | "suspended";
   lastLogin: Date;
   loginHistory: ILoginEntry[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 const UserSchema = new Schema<IUser>(
   {
@@ -47,6 +50,11 @@ const UserSchema = new Schema<IUser>(
       lowercase: true,
       trim: true,
       index: true,
+    },
+
+    avatarUrl: {
+      type: String,
+      default: null,
     },
 
     role: {

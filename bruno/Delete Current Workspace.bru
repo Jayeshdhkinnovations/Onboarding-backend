@@ -1,0 +1,16 @@
+meta {
+  name: Delete Current Workspace
+  type: http
+  seq: 56
+}
+
+delete {
+  url: {{base_url}}/api/workspaces/current
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+}

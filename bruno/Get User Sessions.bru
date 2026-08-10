@@ -1,0 +1,17 @@
+meta {
+  name: Get User Sessions
+  type: http
+  seq: 51
+}
+
+get {
+  url: {{base_url}}/api/auth/sessions
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.sessions: isDefined
+}

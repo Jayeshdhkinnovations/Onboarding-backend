@@ -1,10 +1,21 @@
 import mongoose, { Schema, Document } from "mongoose";
+export interface INotificationPreferences {
+  newResponseEmail: boolean;
+  weeklyDigestEmail: boolean;
+  productUpdatesEmail: boolean;
+}
+
 export interface IWorkspace extends Document {
   name: string;
   description?: string;
   logo?: string;
+  logoUrl?: string | null;
+  branding?: Record<string, any>;
+  notificationPreferences?: INotificationPreferences;
   owner: mongoose.Types.ObjectId;
   status: "active";
+  createdAt: Date;
+  updatedAt: Date;
 }
 const WorkspaceSchema = new Schema<IWorkspace>(
   {
@@ -22,6 +33,22 @@ const WorkspaceSchema = new Schema<IWorkspace>(
     logo: {
       type: String,
       default: "",
+    },
+
+    logoUrl: {
+      type: String,
+      default: null,
+    },
+
+    branding: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+
+    notificationPreferences: {
+      newResponseEmail: { type: Boolean, default: true },
+      weeklyDigestEmail: { type: Boolean, default: true },
+      productUpdatesEmail: { type: Boolean, default: false },
     },
 
     owner: {
