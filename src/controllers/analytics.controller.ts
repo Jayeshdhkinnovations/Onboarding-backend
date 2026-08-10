@@ -7,7 +7,7 @@ import {
   AnalyticsOverviewResponse,
   AnalyticsQuestionsResponse,
   AnalyticsTrendsResponse,
-  AnalyticsFormsResponse,
+  AnalyticsFormsSummaryResponse,
 } from "../types/analytics.types";
 
 /**
@@ -88,7 +88,7 @@ export const getOverview = async (req: Request, res: Response, next: NextFunctio
     let fromDate: Date | null = null;
     let toDate: Date | null = null;
 
-    if (fromStr) {
+    if (fromStr && fromStr !== "all") {
       fromDate = new Date(fromStr);
       if (!isNaN(fromDate.getTime())) {
         matchStage.submittedAt = matchStage.submittedAt || {};
@@ -96,7 +96,7 @@ export const getOverview = async (req: Request, res: Response, next: NextFunctio
       }
     }
 
-    if (toStr) {
+    if (toStr && toStr !== "all") {
       toDate = new Date(toStr);
       if (!isNaN(toDate.getTime())) {
         matchStage.submittedAt = matchStage.submittedAt || {};
@@ -174,7 +174,7 @@ export const getOverview = async (req: Request, res: Response, next: NextFunctio
 
 /**
  * GET /api/analytics/questions?formId=&from=&to=&timezone=
- * Signed-off Contract: Returns per-question response summary & choice option distributions
+ * Returns question option breakdowns with zero-count options included & soft-deleted fields excluded
  */
 export const getQuestions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -191,7 +191,7 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
     let fromDate: Date | null = null;
     let toDate: Date | null = null;
 
-    if (fromStr) {
+    if (fromStr && fromStr !== "all") {
       fromDate = new Date(fromStr);
       if (!isNaN(fromDate.getTime())) {
         matchStage.submittedAt = matchStage.submittedAt || {};
@@ -199,7 +199,7 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
       }
     }
 
-    if (toStr) {
+    if (toStr && toStr !== "all") {
       toDate = new Date(toStr);
       if (!isNaN(toDate.getTime())) {
         matchStage.submittedAt = matchStage.submittedAt || {};
@@ -210,21 +210,34 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
     const responses = await ResponseModel.find(matchStage);
     const totalResponses = responses.length;
 
-    const fields = form.fields || [];
-    const questionsAnalytics = fields.map((field: any) => {
+    // Filter out soft-deleted fields (deleted: true)
+    const activeFields = (form.fields || []).filter((f: any) => !f.deleted);
+
+    const questionsAnalytics = activeFields.map((field: any) => {
       const fieldId = field.fieldId || field.id || field._id?.toString();
       const label = field.label || "Untitled Field";
-      const type = field.type || "text";
+      const type = field.type || "short_text";
 
       let totalAnswered = 0;
       const optionCountMap = new Map<string, number>();
       const sampleAnswers: string[] = [];
+
+      // Pre-populate defined options with zero count
+      if (field.options && Array.isArray(field.options)) {
+        for (const opt of field.options) {
+          const optLabel = typeof opt === "string" ? opt : opt.label || opt.value || "";
+          if (optLabel) {
+            optionCountMap.set(optLabel, 0);
+          }
+        }
+      }
 
       for (const r of responses) {
         const val = r.answers ? r.answers[fieldId] : undefined;
         if (val !== undefined && val !== null && val !== "") {
           totalAnswered++;
           if (Array.isArray(val)) {
+            // Checkbox multi-value answer handling
             for (const item of val) {
               const strVal = String(item).trim();
               if (strVal) {
@@ -247,8 +260,8 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
 
       const summary: any = {};
       if (["dropdown", "multiple_choice", "checkbox"].includes(type) || field.options?.length) {
-        const optionsList = field.options || [];
-        const optionSummaries = optionsList.map((opt: any) => {
+        const definedOptions = field.options && Array.isArray(field.options) ? field.options : Array.from(optionCountMap.keys());
+        const optionSummaries = definedOptions.map((opt: any) => {
           const optLabel = typeof opt === "string" ? opt : opt.label || opt.value || "";
           const cnt = optionCountMap.get(optLabel) || 0;
           const percentage = totalAnswered > 0 ? Number(((cnt / totalAnswered) * 100).toFixed(2)) : 0;
@@ -294,8 +307,8 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * GET /api/analytics/trends?formId=&from=&to=&timezone=
- * Returns date-series trend points (total + completed) using MongoDB $group pipeline
+ * GET /api/analytics/trends?formId=&from=&to=&bucket=day|week&timezone=
+ * Returns { points: [{ bucketStart, responses }] } ordered ascending
  */
 export const getTrends = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -306,14 +319,15 @@ export const getTrends = async (req: Request, res: Response, next: NextFunction)
     const { form } = access;
     const fromStr = req.query.from as string;
     const toStr = req.query.to as string;
-    const interval = (req.query.interval as "day" | "week" | "month") || "day";
+    const rawBucket = (req.query.bucket || req.query.interval || "day") as string;
+    const bucket: "day" | "week" = rawBucket === "week" ? "week" : "day";
     const timezone = (req.query.timezone as string) || "UTC";
 
     const matchStage: any = { formId: form._id };
     let fromDate: Date | null = null;
     let toDate: Date | null = null;
 
-    if (fromStr) {
+    if (fromStr && fromStr !== "all") {
       fromDate = new Date(fromStr);
       if (!isNaN(fromDate.getTime())) {
         matchStage.submittedAt = matchStage.submittedAt || {};
@@ -321,7 +335,7 @@ export const getTrends = async (req: Request, res: Response, next: NextFunction)
       }
     }
 
-    if (toStr) {
+    if (toStr && toStr !== "all") {
       toDate = new Date(toStr);
       if (!isNaN(toDate.getTime())) {
         matchStage.submittedAt = matchStage.submittedAt || {};
@@ -329,44 +343,32 @@ export const getTrends = async (req: Request, res: Response, next: NextFunction)
       }
     }
 
-    let dateFormat = "%Y-%m-%d";
-    if (interval === "month") {
-      dateFormat = "%Y-%m";
-    }
+    const dateFormat = bucket === "week" ? "%G-W%V" : "%Y-%m-%d";
 
     const trendGroup = await ResponseModel.aggregate([
       { $match: matchStage },
       {
         $group: {
           _id: { $dateToString: { format: dateFormat, date: "$submittedAt", timezone } },
-          total: { $sum: 1 },
-          completed: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "completed"] }, 1, 0],
-            },
-          },
+          count: { $sum: 1 },
         },
       },
       { $sort: { _id: 1 } },
     ]);
 
     const points = trendGroup.map((item) => ({
-      date: item._id || "unknown",
-      total: item.total,
-      completed: item.completed,
+      bucketStart: item._id || "unknown",
+      responses: item.count || 0,
     }));
 
     const responseData: AnalyticsTrendsResponse = {
       success: true,
-      data: {
-        formId: form._id.toString(),
-        interval,
-        points,
-        dateRange: {
-          from: fromDate ? fromDate.toISOString() : null,
-          to: toDate ? toDate.toISOString() : null,
-          timezone,
-        },
+      points: points || [],
+      dateRange: {
+        from: fromDate ? fromDate.toISOString() : null,
+        to: toDate ? toDate.toISOString() : null,
+        timezone,
+        bucket,
       },
     };
 
@@ -377,8 +379,8 @@ export const getTrends = async (req: Request, res: Response, next: NextFunction)
 };
 
 /**
- * GET /api/analytics/forms
- * Returns per-form breakdown for the workspace
+ * GET /api/analytics/forms?from=&to=&page=&limit=
+ * Returns per-form summary rows (title, status, totalResponses, sparkline, completionRate), paginated with enforced limit cap
  */
 export const getForms = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -388,11 +390,40 @@ export const getForms = async (req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    const forms = await Form.find({ workspaceId: userWorkspaceId }).sort({ createdAt: -1 });
+    const fromStr = req.query.from as string;
+    const toStr = req.query.to as string;
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const rawLimit = parseInt(req.query.limit as string, 10) || 10;
+    const limit = Math.min(50, Math.max(1, rawLimit));
+    const skip = (page - 1) * limit;
+
+    const totalFormsCount = await Form.countDocuments({ workspaceId: userWorkspaceId });
+    const forms = await Form.find({ workspaceId: userWorkspaceId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
     const formIds = forms.map((f) => f._id);
 
+    const matchStage: any = { formId: { $in: formIds } };
+    if (fromStr && fromStr !== "all") {
+      const fromDate = new Date(fromStr);
+      if (!isNaN(fromDate.getTime())) {
+        matchStage.submittedAt = matchStage.submittedAt || {};
+        matchStage.submittedAt.$gte = fromDate;
+      }
+    }
+    if (toStr && toStr !== "all") {
+      const toDate = new Date(toStr);
+      if (!isNaN(toDate.getTime())) {
+        matchStage.submittedAt = matchStage.submittedAt || {};
+        matchStage.submittedAt.$lte = toDate;
+      }
+    }
+
+    // Aggregate total and completed responses per form
     const statsGroup = await ResponseModel.aggregate([
-      { $match: { formId: { $in: formIds } } },
+      { $match: matchStage },
       {
         $group: {
           _id: "$formId",
@@ -408,31 +439,57 @@ export const getForms = async (req: Request, res: Response, next: NextFunction):
 
     const statsMap = new Map(statsGroup.map((s) => [s._id.toString(), s]));
 
-    let overallTotalResponses = 0;
-    const formsAnalytics = forms.map((form) => {
+    // Aggregate sparkline points per form (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const sparklineMatch = { ...matchStage };
+    sparklineMatch.submittedAt = { $gte: sevenDaysAgo };
+
+    const sparklineGroup = await ResponseModel.aggregate([
+      { $match: sparklineMatch },
+      {
+        $group: {
+          _id: {
+            formId: "$formId",
+            day: { $dateToString: { format: "%Y-%m-%d", date: "$submittedAt" } },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.day": 1 } },
+    ]);
+
+    const sparklineMap = new Map<string, number[]>();
+    for (const sg of sparklineGroup) {
+      const fId = sg._id.formId.toString();
+      if (!sparklineMap.has(fId)) {
+        sparklineMap.set(fId, []);
+      }
+      sparklineMap.get(fId)!.push(sg.count || 0);
+    }
+
+    const formsSummaryRows = forms.map((form) => {
       const fId = form._id.toString();
       const st = statsMap.get(fId) || { total: 0, completed: 0 };
-      overallTotalResponses += st.total;
       const completionRate = st.total > 0 ? Number(((st.completed / st.total) * 100).toFixed(2)) : 0;
+      const sparkline = sparklineMap.get(fId) || [0, 0, 0, 0, 0, 0, 0];
       return {
         formId: fId,
         title: form.title,
         status: form.status,
         totalResponses: st.total,
-        completedResponses: st.completed,
         completionRate,
+        sparkline,
         updatedAt: form.updatedAt,
       };
     });
 
-    const responseData: AnalyticsFormsResponse = {
+    const responseData: AnalyticsFormsSummaryResponse = {
       success: true,
-      data: {
-        totalForms: forms.length,
-        publishedForms: forms.filter((f) => f.status === "published").length,
-        totalResponses: overallTotalResponses,
-        forms: formsAnalytics,
-      },
+      data: formsSummaryRows,
+      total: totalFormsCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalFormsCount / limit) || 1,
     };
 
     res.status(200).json(responseData);

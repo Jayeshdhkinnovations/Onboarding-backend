@@ -63,45 +63,36 @@ export interface AnalyticsQuestionsResponse {
 }
 
 export interface ITrendPoint {
-  date: string;
-  total: number;
-  completed: number;
-}
-
-export interface IAnalyticsTrendsData {
-  formId: string;
-  interval: "day" | "week" | "month";
-  points: ITrendPoint[];
-  dateRange: {
-    from: string | null;
-    to: string | null;
-    timezone: string;
-  };
+  bucketStart: string;
+  responses: number;
 }
 
 export interface AnalyticsTrendsResponse {
   success: boolean;
-  data: IAnalyticsTrendsData;
+  points: ITrendPoint[];
+  dateRange?: {
+    from: string | null;
+    to: string | null;
+    timezone: string;
+    bucket: "day" | "week";
+  };
 }
 
-export interface IFormAnalyticsItem {
+export interface IFormSummaryRow {
   formId: string;
   title: string;
   status: string;
   totalResponses: number;
-  completedResponses: number;
   completionRate: number;
-  updatedAt: Date | string;
+  sparkline: number[];
+  updatedAt: string | Date;
 }
 
-export interface IAnalyticsFormsData {
-  totalForms: number;
-  publishedForms: number;
-  totalResponses: number;
-  forms: IFormAnalyticsItem[];
-}
-
-export interface AnalyticsFormsResponse {
+export interface AnalyticsFormsSummaryResponse {
   success: boolean;
-  data: IAnalyticsFormsData;
+  data: IFormSummaryRow[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }

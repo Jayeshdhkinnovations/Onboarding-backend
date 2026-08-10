@@ -1,0 +1,17 @@
+meta {
+  name: Get Report Detail
+  type: http
+  seq: 47
+}
+
+get {
+  url: {{base_url}}/api/reports/{{report_id}}
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.report: isDefined
+}

@@ -1,0 +1,23 @@
+meta {
+  name: Get Report Jobs
+  type: http
+  seq: 46
+}
+
+get {
+  url: {{base_url}}/api/reports?page=1&limit=10
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+  limit: 10
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isDefined
+  res.body.total: isDefined
+}

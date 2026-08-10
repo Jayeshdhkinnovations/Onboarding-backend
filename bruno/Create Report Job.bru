@@ -1,0 +1,26 @@
+meta {
+  name: Create Report Job
+  type: http
+  seq: 45
+}
+
+post {
+  url: {{base_url}}/api/reports
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "format": "csv",
+    "formId": "{{form_id}}"
+  }
+}
+
+assert {
+  res.status: eq 202
+  res.body.success: eq true
+  res.body.report: isDefined
+  res.body.report.id: isDefined
+  res.body.report.status: isDefined
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Get Analytics Trends (Day vs Week)
+  type: http
+  seq: 43
+}
+
+get {
+  url: {{base_url}}/api/analytics/trends?formId={{form_id}}&bucket=day&from=2026-08-01T00:00:00.000Z&to=2026-08-31T23:59:59.999Z&timezone=UTC
+  body: none
+  auth: inherit
+}
+
+params:query {
+  formId: {{form_id}}
+  bucket: day
+  from: 2026-08-01T00:00:00.000Z
+  to: 2026-08-31T23:59:59.999Z
+  timezone: UTC
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.points: isDefined
+}

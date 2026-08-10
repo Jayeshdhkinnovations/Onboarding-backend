@@ -1,0 +1,25 @@
+meta {
+  name: Get Analytics Forms Summary
+  type: http
+  seq: 44
+}
+
+get {
+  url: {{base_url}}/api/analytics/forms?page=1&limit=10
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+  limit: 10
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isDefined
+  res.body.total: isDefined
+  res.body.page: isDefined
+  res.body.limit: isDefined
+}

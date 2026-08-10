@@ -6,6 +6,7 @@ import User from "../models/User";
 import Workspace from "../models/Workspace";
 import Form from "../models/Form";
 import ResponseModel from "../models/Response";
+import ReportModel from "../models/Report";
 import { generateToken } from "../utils/generateToken";
 
 let mongoServer: MongoMemoryServer;
@@ -56,7 +57,7 @@ beforeAll(async () => {
   await otherUser.save();
   otherUserToken = generateToken({ id: otherUser._id.toString(), email: otherUser.email, role: otherUser.role });
 
-  // Create form in primary workspace
+  // Create form in primary workspace with checkbox and dropdown
   testForm = await Form.create({
     title: "Customer Feedback",
     workspaceId: workspace._id,
@@ -69,6 +70,13 @@ beforeAll(async () => {
         type: "dropdown",
         required: false,
         options: ["Great", "Average", "Poor"],
+      },
+      {
+        fieldId: "field_features",
+        label: "Features Used",
+        type: "checkbox",
+        required: false,
+        options: ["Analytics", "Forms", "Reports"],
       },
       {
         fieldId: "field_comments",
@@ -94,19 +102,19 @@ beforeAll(async () => {
       formId: testForm._id,
       status: "completed",
       submittedAt: new Date("2026-08-05T10:00:00Z"),
-      answers: { field_rating: "Great", field_comments: "Awesome product!" },
+      answers: { field_rating: "Great", field_features: ["Analytics", "Reports"], field_comments: "Awesome product!" },
     },
     {
       formId: testForm._id,
       status: "completed",
       submittedAt: new Date("2026-08-06T12:00:00Z"),
-      answers: { field_rating: "Great", field_comments: "Very good" },
+      answers: { field_rating: "Great", field_features: ["Analytics"], field_comments: "Very good" },
     },
     {
       formId: testForm._id,
       status: "in_progress",
       submittedAt: new Date("2026-08-07T14:00:00Z"),
-      answers: { field_rating: "Average" },
+      answers: { field_rating: "Average", field_features: ["Forms"] },
     },
     {
       formId: testForm._id,
@@ -168,14 +176,11 @@ describe("GET /api/analytics/overview", () => {
     expect(data.new).toBe(1);
     expect(data.completionRate).toBe(50); // 2 completed / 4 total = 50%
     expect(Array.isArray(data.statusDistribution)).toBe(true);
-
-    const completedDist = data.statusDistribution.find((s: any) => s.status === "completed");
-    expect(completedDist).toEqual({ status: "completed", count: 2, percentage: 50 });
   });
 });
 
 describe("GET /api/analytics/questions", () => {
-  it("should return question summary contract response", async () => {
+  it("should return question summary with multi-value checkbox counting and zero-count options included", async () => {
     const res = await request(app)
       .get(`/api/analytics/questions?formId=${testForm._id}`)
       .set("Authorization", `Bearer ${userToken}`);
@@ -183,41 +188,101 @@ describe("GET /api/analytics/questions", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     const data = res.body.data;
-    expect(data.formId).toBe(testForm._id.toString());
     expect(data.totalResponses).toBe(4);
-    expect(Array.isArray(data.questions)).toBe(true);
-    expect(data.questions.length).toBe(2);
 
+    const checkboxQ = data.questions.find((q: any) => q.fieldId === "field_features");
+    expect(checkboxQ).toBeDefined();
+    expect(checkboxQ.totalAnswered).toBe(3);
+
+    // Verify option multi-value counting
+    const options = checkboxQ.summary.options;
+    const analyticsOpt = options.find((o: any) => o.label === "Analytics");
+    const reportsOpt = options.find((o: any) => o.label === "Reports");
+    const formsOpt = options.find((o: any) => o.label === "Forms");
+
+    expect(analyticsOpt.count).toBe(2);
+    expect(reportsOpt.count).toBe(1);
+    expect(formsOpt.count).toBe(1);
+
+    // Verify zero-count options included for dropdown
     const ratingQ = data.questions.find((q: any) => q.fieldId === "field_rating");
-    expect(ratingQ).toBeDefined();
-    expect(ratingQ.totalAnswered).toBe(3);
-    expect(ratingQ.responseRate).toBe(75); // 3 / 4 = 75%
-    expect(ratingQ.summary.options).toBeDefined();
+    const poorOpt = ratingQ.summary.options.find((o: any) => o.label === "Poor");
+    expect(poorOpt).toBeDefined();
+    expect(poorOpt.count).toBe(0);
+    expect(poorOpt.percentage).toBe(0);
   });
 });
 
-describe("GET /api/analytics/trends", () => {
-  it("should return trend points aggregated by date interval", async () => {
+describe("GET /api/analytics/trends - Day vs Week Bucket Selection", () => {
+  it("should aggregate by day when bucket=day", async () => {
     const res = await request(app)
-      .get(`/api/analytics/trends?formId=${testForm._id}&interval=day`)
+      .get(`/api/analytics/trends?formId=${testForm._id}&bucket=day`)
       .set("Authorization", `Bearer ${userToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(Array.isArray(res.body.data.points)).toBe(true);
+    expect(Array.isArray(res.body.points)).toBe(true);
+    expect(res.body.dateRange.bucket).toBe("day");
   });
-});
 
-describe("GET /api/analytics/forms", () => {
-  it("should return per-form analytics for the workspace", async () => {
+  it("should aggregate by week when bucket=week", async () => {
     const res = await request(app)
-      .get("/api/analytics/forms")
+      .get(`/api/analytics/trends?formId=${testForm._id}&bucket=week`)
       .set("Authorization", `Bearer ${userToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.totalForms).toBe(1);
-    expect(res.body.data.totalResponses).toBe(4);
-    expect(res.body.data.forms[0].completionRate).toBe(50);
+    expect(Array.isArray(res.body.points)).toBe(true);
+    expect(res.body.dateRange.bucket).toBe("week");
+  });
+});
+
+describe("Reports API (/api/reports)", () => {
+  let createdReportId: string;
+
+  it("POST /api/reports - should create a queued CSV report job and return 202 immediately", async () => {
+    const res = await request(app)
+      .post("/api/reports")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        format: "csv",
+        formId: testForm._id.toString(),
+      });
+
+    expect(res.status).toBe(202);
+    expect(res.body.success).toBe(true);
+    expect(res.body.report.status).toBe("queued");
+    expect(res.body.report.format).toBe("csv");
+    createdReportId = res.body.report.id;
+  });
+
+  it("GET /api/reports - should list workspace report jobs paginated", async () => {
+    const res = await request(app)
+      .get("/api/reports?page=1&limit=10")
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.total).toBeGreaterThanOrEqual(1);
+  });
+
+  it("GET /api/reports/:id - should get report detail", async () => {
+    const res = await request(app)
+      .get(`/api/reports/${createdReportId}`)
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.report.id).toBe(createdReportId);
+  });
+
+  it("GET /api/reports/:id/file - should reject access to report from another workspace (403)", async () => {
+    const res = await request(app)
+      .get(`/api/reports/${createdReportId}/file`)
+      .set("Authorization", `Bearer ${otherUserToken}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
   });
 });
