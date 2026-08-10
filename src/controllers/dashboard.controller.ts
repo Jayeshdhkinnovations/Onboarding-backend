@@ -90,22 +90,39 @@ export const getAnalytics = async (req: Request, res: Response, next: NextFuncti
       timestamp: r.submittedAt || r.createdAt,
     }));
 
-    // 5. Aggregate per-form response counts for formsBreakdown
-    const responseCountsArr = await ResponseModel.aggregate([
+    // 5. Aggregate per-form total and completed response counts using MongoDB $group pipeline
+    const formStatsArr = await ResponseModel.aggregate([
       { $match: { formId: { $in: formIds } } },
-      { $group: { _id: "$formId", count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: "$formId",
+          total: { $sum: 1 },
+          completed: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "completed"] }, 1, 0],
+            },
+          },
+        },
+      },
     ]);
-    const responseCountMap = new Map(responseCountsArr.map((item) => [item._id.toString(), item.count]));
+    const formStatsMap = new Map(
+      formStatsArr.map((item) => [
+        item._id.toString(),
+        { total: item.total, completed: item.completed },
+      ])
+    );
 
     const formsBreakdown = forms.map((form) => {
       const fId = form._id.toString();
-      const count = responseCountMap.get(fId) || 0;
+      const stats = formStatsMap.get(fId) || { total: 0, completed: 0 };
+      const responseRate =
+        stats.total > 0 ? Number(((stats.completed / stats.total) * 100).toFixed(2)) : 0;
       return {
         formId: fId,
         title: form.title,
         status: form.status,
-        responseCount: count,
-        responseRate: count > 0 ? 75 : 0,
+        responseCount: stats.total,
+        responseRate,
         updatedAt: form.updatedAt,
       };
     });

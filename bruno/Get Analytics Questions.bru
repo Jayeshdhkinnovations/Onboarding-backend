@@ -1,0 +1,27 @@
+meta {
+  name: Get Analytics Questions
+  type: http
+  seq: 42
+}
+
+get {
+  url: {{base_url}}/api/analytics/questions?formId={{form_id}}&from=2026-08-01T00:00:00.000Z&to=2026-08-31T23:59:59.999Z&timezone=UTC
+  body: none
+  auth: inherit
+}
+
+params:query {
+  formId: {{form_id}}
+  from: 2026-08-01T00:00:00.000Z
+  to: 2026-08-31T23:59:59.999Z
+  timezone: UTC
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isDefined
+  res.body.data.formId: isDefined
+  res.body.data.totalResponses: isDefined
+  res.body.data.questions: isDefined
+}

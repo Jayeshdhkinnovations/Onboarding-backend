@@ -14,6 +14,7 @@ import templateRoutes from "./routes/template.routes";
 import publicRoutes from "./routes/public.routes";
 import responseRoutes from "./routes/response.routes";
 import superadminRoutes from "./routes/superadmin.routes";
+import analyticsRoutes from "./routes/analytics.routes";
 import { errorHandler } from "./middleware/error.middleware";
 
 // Continuous Deployment Test Comment
@@ -30,9 +31,11 @@ const defaultAllowedOrigins = [
   "https://www.beginso.com",
 ];
 
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
-  : defaultAllowedOrigins;
+const envAllowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+  : [];
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envAllowedOrigins]));
 
 app.use(
   cors({
@@ -82,6 +85,7 @@ app.use("/api/forms", formRoutes);
 app.use("/api/responses", responseRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/analytics", analyticsRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/templates", templateRoutes);
 app.use("/api/superadmin", superadminRoutes);
