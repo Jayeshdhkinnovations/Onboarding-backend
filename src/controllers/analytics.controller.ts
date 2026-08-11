@@ -213,6 +213,22 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
     // Filter out soft-deleted fields (deleted: true)
     const activeFields = (form.fields || []).filter((f: any) => !f.deleted);
 
+    // Helper to resolve field answer value from response.answers under any keying scheme (fieldId, label, id, _id)
+    const getFieldValue = (answers: Record<string, any> | undefined, field: any): any => {
+      if (!answers || typeof answers !== "object") return undefined;
+      if (field.fieldId && answers[field.fieldId] !== undefined) {
+        return answers[field.fieldId];
+      }
+      if (field.label && answers[field.label] !== undefined) {
+        return answers[field.label];
+      }
+      const altId = field.id || (field._id ? field._id.toString() : undefined);
+      if (altId && answers[altId] !== undefined) {
+        return answers[altId];
+      }
+      return undefined;
+    };
+
     const questionsAnalytics = activeFields.map((field: any) => {
       const fieldId = field.fieldId || field.id || field._id?.toString();
       const label = field.label || "Untitled Field";
@@ -233,7 +249,7 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
       }
 
       for (const r of responses) {
-        const val = r.answers ? r.answers[fieldId] : undefined;
+        const val = getFieldValue(r.answers, field);
         if (val !== undefined && val !== null && val !== "") {
           totalAnswered++;
           if (Array.isArray(val)) {
@@ -241,13 +257,27 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
             for (const item of val) {
               const strVal = String(item).trim();
               if (strVal) {
-                optionCountMap.set(strVal, (optionCountMap.get(strVal) || 0) + 1);
+                let matchedKey = strVal;
+                for (const key of optionCountMap.keys()) {
+                  if (key.toLowerCase() === strVal.toLowerCase()) {
+                    matchedKey = key;
+                    break;
+                  }
+                }
+                optionCountMap.set(matchedKey, (optionCountMap.get(matchedKey) || 0) + 1);
               }
             }
           } else if (typeof val === "string" || typeof val === "number" || typeof val === "boolean") {
             const strVal = String(val).trim();
             if (strVal) {
-              optionCountMap.set(strVal, (optionCountMap.get(strVal) || 0) + 1);
+              let matchedKey = strVal;
+              for (const key of optionCountMap.keys()) {
+                if (key.toLowerCase() === strVal.toLowerCase()) {
+                  matchedKey = key;
+                  break;
+                }
+              }
+              optionCountMap.set(matchedKey, (optionCountMap.get(matchedKey) || 0) + 1);
               if (sampleAnswers.length < 5) {
                 sampleAnswers.push(strVal);
               }

@@ -211,6 +211,50 @@ describe("GET /api/analytics/questions", () => {
     expect(poorOpt.count).toBe(0);
     expect(poorOpt.percentage).toBe(0);
   });
+
+  it("should resolve answer counts when responses store answers keyed by human label instead of fieldId", async () => {
+    const labelForm: any = await Form.create({
+      title: "Label Keyed Form",
+      workspaceId: workspace._id,
+      status: "published",
+      fields: [
+        {
+          fieldId: "q_prod_123",
+          label: "Product Choice",
+          type: "dropdown",
+          options: ["Product A", "Product B"],
+        },
+      ] as any,
+    });
+
+    await ResponseModel.create([
+      {
+        formId: labelForm._id,
+        status: "completed",
+        submittedAt: new Date(),
+        answers: { "Product Choice": "Product A" },
+      },
+      {
+        formId: labelForm._id,
+        status: "completed",
+        submittedAt: new Date(),
+        answers: { "Product Choice": "Product B" },
+      },
+    ]);
+
+    const res = await request(app)
+      .get(`/api/analytics/questions?formId=${labelForm._id}`)
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    const q = res.body.data.questions[0];
+    expect(q.totalAnswered).toBe(2);
+    const prodA = q.summary.options.find((o: any) => o.label === "Product A");
+    const prodB = q.summary.options.find((o: any) => o.label === "Product B");
+    expect(prodA.count).toBe(1);
+    expect(prodB.count).toBe(1);
+  });
 });
 
 describe("GET /api/analytics/trends - Day vs Week Bucket Selection", () => {
