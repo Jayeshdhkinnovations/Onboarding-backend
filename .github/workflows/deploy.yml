@@ -20,21 +20,21 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build Code
         run: npm run build
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATEKEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
+          port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
             cd /root/Onboarding-backend
             git pull origin main
-            npm install --omit=dev
+            npm install
             npm run build
             pm2 restart onboarding-backend || pm2 start dist/server.js --name "onboarding-backend"
