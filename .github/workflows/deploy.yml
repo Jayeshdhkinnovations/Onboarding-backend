@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout Code
@@ -17,7 +17,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install Dependencies
         run: npm install
@@ -25,17 +24,9 @@ jobs:
       - name: Build Code
         run: npm run build
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER || 'root' }}
-          key: ${{ secrets.SSH_PRIVATEKEY || secrets.SSH_PRIVATE_KEY || secrets.SSH_KEY }}
-          password: ${{ secrets.SERVER_PASSWORD || secrets.PASSWORD }}
-          port: ${{ secrets.SERVER_PORT || '22' }}
-          script: |
-            cd /root/Onboarding-backend
-            git pull origin main
-            npm install
-            npm run build
-            pm2 restart onboarding-backend || pm2 start dist/server.js --name "onboarding-backend"
+      - name: Copy Firebase Assets
+        run: node copyAssets.js
+
+      - name: Restart PM2 Service
+        run: |
+          pm2 restart onboarding-backend || pm2 start dist/server.js --name "onboarding-backend"
