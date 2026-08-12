@@ -29,8 +29,9 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATEKEY }}
+          username: ${{ secrets.SERVER_USER || 'root' }}
+          key: ${{ secrets.SSH_PRIVATEKEY || secrets.SSH_PRIVATE_KEY || secrets.SSH_KEY }}
+          password: ${{ secrets.SERVER_PASSWORD || secrets.PASSWORD }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
             cd /root/Onboarding-backend
