@@ -14,7 +14,7 @@ const ensureReportsDir = (): void => {
 };
 
 /**
- * Escapes special characters for CSV values.
+ * Escapes special characters for CSV values & prevents formula injection.
  */
 const escapeCsv = (val: any): string => {
   if (val === null || val === undefined) return '""';
@@ -23,8 +23,15 @@ const escapeCsv = (val: any): string => {
   } else if (typeof val === "object") {
     val = JSON.stringify(val);
   }
-  const str = String(val).replace(/"/g, '""');
-  return `"${str}"`;
+  let str = String(val);
+  
+  // Prevent CSV formula injection for spreadsheet software
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
+  
+  const escaped = str.replace(/"/g, '""');
+  return `"${escaped}"`;
 };
 
 /**
@@ -60,15 +67,19 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
       query.status = filters.status;
     }
 
-    if (filters.from || filters.to) {
-      query.submittedAt = {};
-      if (filters.from) {
+    // Handle date range filters safely without creating empty object queries
+    if ((filters.from && filters.from !== "all") || (filters.to && filters.to !== "all")) {
+      const submittedAtQuery: any = {};
+      if (filters.from && filters.from !== "all") {
         const fromDate = new Date(filters.from);
-        if (!isNaN(fromDate.getTime())) query.submittedAt.$gte = fromDate;
+        if (!isNaN(fromDate.getTime())) submittedAtQuery.$gte = fromDate;
       }
-      if (filters.to) {
+      if (filters.to && filters.to !== "all") {
         const toDate = new Date(filters.to);
-        if (!isNaN(toDate.getTime())) query.submittedAt.$lte = toDate;
+        if (!isNaN(toDate.getTime())) submittedAtQuery.$lte = toDate;
+      }
+      if (Object.keys(submittedAtQuery).length > 0) {
+        query.submittedAt = submittedAtQuery;
       }
     }
 
@@ -149,7 +160,7 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
 
       html += `</tbody></table></body></html>`;
 
-      let generatedPdf = false;
+      let puppeteerSuccess = false;
       try {
         const puppeteer = require("puppeteer");
         const browser = await puppeteer.launch({ args: ["--no-sandbox", "--disable-setuid-sandbox"] });
@@ -157,22 +168,30 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
         await page.setContent(html);
         await page.pdf({ path: targetFilePath, format: "A4" });
         await browser.close();
-        generatedPdf = true;
+        puppeteerSuccess = true;
       } catch (pErr) {
         // Fallback PDF writer if Puppeteer binary is absent
-        const writeStream = fs.createWriteStream(targetFilePath);
-        writeStream.write(`%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n`);
-        writeStream.write(`2 0 obj << /Type /Pages /Kinds [] /Count 0 >> endobj\n`);
-        writeStream.write(`%%EOF\n`);
-        writeStream.end();
-        generatedPdf = true;
+        await new Promise<void>((resolve, reject) => {
+          const writeStream = fs.createWriteStream(targetFilePath);
+          writeStream.on("finish", () => resolve());
+          writeStream.on("error", (err) => reject(err));
+          writeStream.write(`%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n`);
+          writeStream.write(`2 0 obj << /Type /Pages /Kinds [] /Count 0 >> endobj\n`);
+          writeStream.write(`%%EOF\n`);
+          writeStream.end();
+        });
       }
+    }
+
+    if (!fs.existsSync(targetFilePath)) {
+      throw new Error(`Report file failed to generate at path ${targetFilePath}`);
     }
 
     const stats = fs.statSync(targetFilePath);
     report.filePath = targetFilePath;
     report.fileSize = stats.size;
     report.status = "completed";
+    report.errorMessage = undefined;
     await report.save();
   } catch (err: any) {
     console.error("Report generation error:", err);
@@ -180,7 +199,7 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
       const report = await ReportModel.findById(reportId);
       if (report) {
         report.status = "failed";
-        report.errorMessage = "Failed to generate report due to an internal processing error. Please try again.";
+        report.errorMessage = err?.message || "Failed to generate report due to an internal processing error. Please try again.";
         await report.save();
       }
     } catch (saveErr) {
