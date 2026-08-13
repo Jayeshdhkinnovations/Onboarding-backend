@@ -446,16 +446,28 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
 
         // --- 6. FOOTER ON EVERY PAGE ---
         const rangePages = doc.bufferedPageRange();
+        const footerY = 800;
         for (let i = rangePages.start; i < rangePages.start + rangePages.count; i++) {
           doc.switchToPage(i);
           const pageNum = i + 1;
           const totalPages = rangePages.count;
 
-          doc.moveTo(40, 800).lineTo(555, 800).strokeColor("#E2E8F0").lineWidth(0.5).stroke();
+          // The footer sits inside the page's bottom margin on purpose (y=800 on an A4 page with
+          // margin:40 is past the ~802 usable content boundary). PDFKit's .text() silently auto-adds
+          // a new page whenever it's asked to write below that boundary — even for absolutely-positioned
+          // text — so without this, each of the three text() calls below spawned its own extra
+          // near-blank page. Zeroing the bottom margin just for this page while drawing the footer
+          // disables that check; restored right after.
+          const originalBottomMargin = doc.page.margins.bottom;
+          doc.page.margins.bottom = 0;
+
+          doc.moveTo(40, footerY).lineTo(555, footerY).strokeColor("#E2E8F0").lineWidth(0.5).stroke();
           doc.fillColor("#94A3B8").fontSize(8).font("Helvetica");
-          doc.text("Beginso · Analytics Report", 40, 808);
-          doc.text(scopedTitle, 200, 808, { width: 195, align: "center" });
-          doc.text(`Page ${pageNum} of ${totalPages}`, 400, 808, { align: "right" });
+          doc.text("Beginso · Analytics Report", 40, footerY + 8, { lineBreak: false });
+          doc.text(scopedTitle, 200, footerY + 8, { width: 195, align: "center", lineBreak: false });
+          doc.text(`Page ${pageNum} of ${totalPages}`, 400, footerY + 8, { width: 115, align: "right", lineBreak: false });
+
+          doc.page.margins.bottom = originalBottomMargin;
         }
 
         doc.end();
