@@ -69,15 +69,18 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
     }
 
     // Handle date range filters safely without creating empty object queries
+    let fromDateObj: Date | null = null;
+    let toDateObj: Date | null = null;
+
     if ((filters.from && filters.from !== "all") || (filters.to && filters.to !== "all")) {
       const submittedAtQuery: any = {};
       if (filters.from && filters.from !== "all") {
-        const fromDate = new Date(filters.from);
-        if (!isNaN(fromDate.getTime())) submittedAtQuery.$gte = fromDate;
+        fromDateObj = new Date(filters.from);
+        if (!isNaN(fromDateObj.getTime())) submittedAtQuery.$gte = fromDateObj;
       }
       if (filters.to && filters.to !== "all") {
-        const toDate = new Date(filters.to);
-        if (!isNaN(toDate.getTime())) submittedAtQuery.$lte = toDate;
+        toDateObj = new Date(filters.to);
+        if (!isNaN(toDateObj.getTime())) submittedAtQuery.$lte = toDateObj;
       }
       if (Object.keys(submittedAtQuery).length > 0) {
         query.submittedAt = submittedAtQuery;
@@ -112,13 +115,26 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
         writeStream.on("error", (err) => reject(err));
       });
     } else if (report.format === "pdf") {
-      // PDF generation using pure JS pdfkit engine (no external binary or Puppeteer dependency required)
+      // PDF generation matching the Analytics Dashboard layout (KPI cards, Trend chart, Status breakdown, Appendix)
       const responses = await ResponseModel.find(query).sort({ submittedAt: -1 }).limit(500);
       const totalCount = responses.length;
       const completedCount = responses.filter((r) => r.status === "completed").length;
+      const inProgressCount = responses.filter((r) => r.status === "in_progress").length;
+      const newCount = responses.filter((r) => r.status === "new" || !r.status).length;
+
+      // Determine scoped form title
+      let scopedTitle = "All Workspace Forms";
+      if (filters.formId && formMap.has(filters.formId)) {
+        scopedTitle = formMap.get(filters.formId)!.title;
+      }
+
+      // Format date range text
+      const rangeText = fromDateObj && toDateObj
+        ? `${fromDateObj.toISOString().slice(0, 10)} to ${toDateObj.toISOString().slice(0, 10)}`
+        : "All Time";
 
       await new Promise<void>((resolve, reject) => {
-        const doc = new PDFDocument({ margin: 40, size: "A4" });
+        const doc = new PDFDocument({ margin: 40, size: "A4", bufferPages: true });
         const writeStream = fs.createWriteStream(targetFilePath);
 
         writeStream.on("finish", () => resolve());
@@ -127,31 +143,193 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
 
         doc.pipe(writeStream);
 
-        // Header Title
-        doc.fillColor("#1E40AF").fontSize(20).text("Beginso Workspace Analytics Report", { align: "left" });
-        doc.moveDown(0.5);
-        doc.fillColor("#4B5563").fontSize(10).text(`Generated At: ${new Date().toUTCString()}`);
-        doc.text(`Total Responses in Range: ${totalCount}`);
-        doc.text(`Completed Responses: ${completedCount}`);
-        doc.moveDown(1);
+        // --- 1. HEADER SECTION ---
+        doc.fillColor("#1D4ED8").fontSize(20).font("Helvetica-Bold").text("BEGINSO", 40, 40);
+        doc.fillColor("#0F172A").fontSize(16).font("Helvetica-Bold").text("Analytics Report", 40, 68);
+        doc.fillColor("#475569").fontSize(11).font("Helvetica").text(`Form: ${scopedTitle}`, 40, 90);
+        
+        doc.fillColor("#64748B").fontSize(9).font("Helvetica");
+        doc.text(`Report Period: ${rangeText}`, 350, 40, { align: "right" });
+        doc.text(`Generated: ${new Date().toUTCString()}`, 350, 54, { align: "right" });
 
-        // Horizontal Line
-        doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#E5E7EB").stroke();
-        doc.moveDown(1);
+        // Divider
+        doc.moveTo(40, 112).lineTo(555, 112).strokeColor("#E2E8F0").lineWidth(1).stroke();
+
+        // --- 2. SUMMARY ROW (4 EQUAL-WIDTH KPI CARDS) ---
+        const startY = 125;
+        const cardWidth = 120;
+        const cardHeight = 55;
+        const gap = 12;
+
+        const kpis = [
+          { label: "TOTAL RESPONSES", count: totalCount, color: "#0F172A" },
+          { label: "COMPLETED", count: completedCount, color: "#22C55E" },
+          { label: "IN PROGRESS", count: inProgressCount, color: "#EAB308" },
+          { label: "NEW", count: newCount, color: "#3B82F6" },
+        ];
+
+        kpis.forEach((kpi, idx) => {
+          const x = 40 + idx * (cardWidth + gap);
+          // Card background & border
+          doc.roundedRect(x, startY, cardWidth, cardHeight, 6).fillAndStroke("#F8FAFC", "#E2E8F0");
+
+          // Label
+          doc.fillColor("#64748B").fontSize(7).font("Helvetica-Bold").text(kpi.label, x + 10, startY + 10);
+          // Big Number
+          doc.fillColor(kpi.color).fontSize(18).font("Helvetica-Bold").text(String(kpi.count), x + 10, startY + 24);
+        });
+
+        // --- 3. STATUS DISTRIBUTION PROGRESS BAR & LEGEND ---
+        let currentY = 195;
+        doc.fillColor("#0F172A").fontSize(12).font("Helvetica-Bold").text("Status Distribution", 40, currentY);
+        currentY += 18;
+
+        const totalForPct = totalCount > 0 ? totalCount : 1;
+        const completedPct = Math.round((completedCount / totalForPct) * 100);
+        const inProgressPct = Math.round((inProgressCount / totalForPct) * 100);
+        const newPct = Math.max(0, 100 - completedPct - inProgressPct);
+
+        // Stacked Progress Bar
+        const barX = 40;
+        const barW = 515;
+        const barH = 14;
+
+        doc.roundedRect(barX, currentY, barW, barH, 4).fill("#E2E8F0"); // base
+
+        let currX = barX;
+        if (totalCount > 0) {
+          const wCompleted = (completedCount / totalCount) * barW;
+          const wInProgress = (inProgressCount / totalCount) * barW;
+          const wNew = (newCount / totalCount) * barW;
+
+          if (wCompleted > 0) {
+            doc.rect(currX, currentY, wCompleted, barH).fill("#22C55E");
+            currX += wCompleted;
+          }
+          if (wInProgress > 0) {
+            doc.rect(currX, currentY, wInProgress, barH).fill("#EAB308");
+            currX += wInProgress;
+          }
+          if (wNew > 0) {
+            doc.rect(currX, currentY, wNew, barH).fill("#3B82F6");
+          }
+        }
+
+        currentY += 22;
+
+        // Legend Items
+        doc.fillColor("#15803D").fontSize(9).font("Helvetica-Bold").text(`● Completed: ${completedCount} (${completedPct}%)`, 40, currentY);
+        doc.fillColor("#A16207").fontSize(9).font("Helvetica-Bold").text(`● In Progress: ${inProgressCount} (${inProgressPct}%)`, 200, currentY);
+        doc.fillColor("#1D4ED8").fontSize(9).font("Helvetica-Bold").text(`● New: ${newCount} (${newPct}%)`, 380, currentY);
+
+        // --- 4. RESPONSE TREND SPARKLINE / VOLUME CHART ---
+        currentY += 26;
+        doc.fillColor("#0F172A").fontSize(12).font("Helvetica-Bold").text("Response Volume Trend", 40, currentY);
+        currentY += 18;
+
+        // Group responses by day for chart
+        const dayCounts = new Map<string, number>();
+        responses.forEach((r) => {
+          const dt = r.submittedAt || r.createdAt;
+          const dKey = dt ? dt.toISOString().slice(5, 10) : "N/A";
+          dayCounts.set(dKey, (dayCounts.get(dKey) || 0) + 1);
+        });
+
+        const trendPoints = Array.from(dayCounts.entries()).slice(-10); // last 10 dates
+        const maxVal = Math.max(1, ...trendPoints.map((p) => p[1]));
+
+        const chartX = 40;
+        const chartY = currentY;
+        const chartW = 515;
+        const chartH = 65;
+
+        // Chart box background
+        doc.roundedRect(chartX, chartY, chartW, chartH, 6).fillAndStroke("#F8FAFC", "#E2E8F0");
+
+        if (trendPoints.length > 0) {
+          const stepW = chartW / (trendPoints.length || 1);
+          trendPoints.forEach((pt, idx) => {
+            const bX = chartX + idx * stepW + stepW * 0.2;
+            const bW = Math.max(8, stepW * 0.6);
+            const bH = (pt[1] / maxVal) * (chartH - 25);
+            const bY = chartY + chartH - 15 - bH;
+
+            // Bar
+            doc.rect(bX, bY, bW, bH).fill("#1D4ED8");
+            // Label date below
+            doc.fillColor("#64748B").fontSize(7).font("Helvetica").text(pt[0], bX - 4, chartY + chartH - 12, { width: bW + 8, align: "center" });
+            // Count above bar
+            doc.fillColor("#0F172A").fontSize(7).font("Helvetica-Bold").text(String(pt[1]), bX - 4, bY - 9, { width: bW + 8, align: "center" });
+          });
+        }
+
+        currentY = chartY + chartH + 20;
+
+        // --- 5. RESPONSE RECORDS APPENDIX TABLE ---
+        doc.fillColor("#0F172A").fontSize(12).font("Helvetica-Bold").text("Response Records Appendix", 40, currentY);
+        currentY += 18;
 
         // Table Header
-        doc.fillColor("#1E40AF").fontSize(11).text("Response Records Summary:", { underline: true });
-        doc.moveDown(0.5);
+        const tX = 40;
+        const colWidths = [160, 160, 90, 105];
+        
+        doc.rect(tX, currentY, 515, 18).fill("#1E40AF");
+        doc.fillColor("#FFFFFF").fontSize(8).font("Helvetica-Bold");
+        doc.text("RESPONSE ID", tX + 8, currentY + 5);
+        doc.text("FORM TITLE", tX + 8 + colWidths[0], currentY + 5);
+        doc.text("STATUS", tX + 8 + colWidths[0] + colWidths[1], currentY + 5);
+        doc.text("SUBMITTED AT", tX + 8 + colWidths[0] + colWidths[1] + colWidths[2], currentY + 5);
+
+        currentY += 18;
 
         if (responses.length === 0) {
-          doc.fillColor("#6B7280").fontSize(10).text("No responses found for the selected filter range.");
+          doc.fillColor("#64748B").fontSize(9).font("Helvetica").text("No response records match the criteria.", tX + 8, currentY + 8);
         } else {
-          for (const r of responses) {
-            const title = formMap.get(r.formId.toString())?.title || "Form Response";
-            const dateStr = r.submittedAt ? r.submittedAt.toISOString().slice(0, 10) : r.createdAt.toISOString().slice(0, 10);
-            doc.fillColor("#111827").fontSize(9).text(`• ID: ${r._id.toString()}  |  Form: ${title}  |  Status: ${r.status || "new"}  |  Date: ${dateStr}`);
-            doc.moveDown(0.3);
-          }
+          // Render rows
+          responses.forEach((r, idx) => {
+            if (currentY > 740) {
+              doc.addPage();
+              currentY = 40;
+              // Repeat Table Header on new page
+              doc.rect(tX, currentY, 515, 18).fill("#1E40AF");
+              doc.fillColor("#FFFFFF").fontSize(8).font("Helvetica-Bold");
+              doc.text("RESPONSE ID", tX + 8, currentY + 5);
+              doc.text("FORM TITLE", tX + 8 + colWidths[0], currentY + 5);
+              doc.text("STATUS", tX + 8 + colWidths[0] + colWidths[1], currentY + 5);
+              doc.text("SUBMITTED AT", tX + 8 + colWidths[0] + colWidths[1] + colWidths[2], currentY + 5);
+              currentY += 18;
+            }
+
+            const bg = idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC";
+            doc.rect(tX, currentY, 515, 16).fill(bg);
+
+            const formTitle = formMap.get(r.formId.toString())?.title || scopedTitle;
+            const dateStr = (r.submittedAt || r.createdAt).toISOString().slice(0, 10);
+            const statusStr = r.status || "new";
+            const statusColor = statusStr === "completed" ? "#15803D" : statusStr === "in_progress" ? "#A16207" : "#1D4ED8";
+
+            doc.fillColor("#334155").fontSize(8).font("Helvetica");
+            doc.text(r._id.toString(), tX + 8, currentY + 4, { width: colWidths[0] - 10 });
+            doc.text(formTitle, tX + 8 + colWidths[0], currentY + 4, { width: colWidths[1] - 10 });
+            doc.fillColor(statusColor).font("Helvetica-Bold").text(statusStr.toUpperCase(), tX + 8 + colWidths[0] + colWidths[1], currentY + 4);
+            doc.fillColor("#334155").font("Helvetica").text(dateStr, tX + 8 + colWidths[0] + colWidths[1] + colWidths[2], currentY + 4);
+
+            currentY += 16;
+          });
+        }
+
+        // --- 6. FOOTER ON EVERY PAGE ---
+        const rangePages = doc.bufferedPageRange();
+        for (let i = rangePages.start; i < rangePages.start + rangePages.count; i++) {
+          doc.switchToPage(i);
+          const pageNum = i + 1;
+          const totalPages = rangePages.count;
+
+          doc.moveTo(40, 800).lineTo(555, 800).strokeColor("#E2E8F0").lineWidth(0.5).stroke();
+          doc.fillColor("#94A3B8").fontSize(8).font("Helvetica");
+          doc.text("Beginso · Analytics Report", 40, 808);
+          doc.text(scopedTitle, 200, 808, { width: 195, align: "center" });
+          doc.text(`Page ${pageNum} of ${totalPages}`, 400, 808, { align: "right" });
         }
 
         doc.end();
