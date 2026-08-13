@@ -90,7 +90,7 @@ const seedKingsData = async () => {
           { fieldId: "phone", label: "Phone Number", type: "phone", required: true },
           { fieldId: "position", label: "Position Applied For", type: "dropdown", required: true, options: jobTitles },
           { fieldId: "experience", label: "Years of Experience", type: "number", required: true },
-          { fieldId: "bio", label: "Cover Letter / Bio", type: "long_text", required: false },
+          { fieldId: "bio", label: "Cover Letter / Bio", type: "long_text", required: true },
         ]
       },
       {
@@ -103,7 +103,7 @@ const seedKingsData = async () => {
           { fieldId: "product_selected", label: "Select Product", type: "dropdown", required: true, options: products },
           { fieldId: "quantity", label: "Quantity", type: "number", required: true },
           { fieldId: "payment_method", label: "Payment Method", type: "multiple_choice", required: true, options: paymentMethods },
-          { fieldId: "special_instructions", label: "Special Delivery Instructions", type: "long_text", required: false }
+          { fieldId: "special_instructions", label: "Special Delivery Instructions", type: "long_text", required: true }
         ]
       },
       {
@@ -111,11 +111,11 @@ const seedKingsData = async () => {
         slug: "customer-feedback-survey",
         description: "Help us improve by rating your experience with our platform.",
         fields: [
-          { fieldId: "respondent_name", label: "Your Name", type: "short_text", required: false },
+          { fieldId: "respondent_name", label: "Your Name", type: "short_text", required: true },
           { fieldId: "overall_rating", label: "Overall Satisfaction", type: "dropdown", required: true, options: ratingValues },
-          { fieldId: "features_liked", label: "What features did you enjoy most?", type: "checkbox", required: false, options: ["Form Builder", "Analytics Dashboard", "Speed & Performance", "Customer Support", "Export Tools"] },
+          { fieldId: "features_liked", label: "What features did you enjoy most?", type: "checkbox", required: true, options: ["Form Builder", "Analytics Dashboard", "Speed & Performance", "Customer Support", "Export Tools"] },
           { fieldId: "recommend", label: "Would you recommend Beginso to colleagues?", type: "multiple_choice", required: true, options: ["Definitely Yes", "Probably Yes", "Not Sure", "No"] },
-          { fieldId: "feedback_text", label: "Detailed Feedback & Suggestions", type: "long_text", required: false }
+          { fieldId: "feedback_text", label: "Detailed Feedback & Suggestions", type: "long_text", required: true }
         ]
       },
       {
@@ -126,7 +126,7 @@ const seedKingsData = async () => {
           { fieldId: "contact_name", label: "Your Name", type: "short_text", required: true },
           { fieldId: "contact_email", label: "Email Address", type: "email", required: true },
           { fieldId: "subject", label: "Subject", type: "short_text", required: true },
-          { fieldId: "preferred_contact_time", label: "Preferred Contact Time", type: "dropdown", required: false, options: ["Morning (9 AM - 12 PM)", "Afternoon (12 PM - 5 PM)", "Evening (5 PM - 8 PM)"] },
+          { fieldId: "preferred_contact_time", label: "Preferred Contact Time", type: "dropdown", required: true, options: ["Morning (9 AM - 12 PM)", "Afternoon (12 PM - 5 PM)", "Evening (5 PM - 8 PM)"] },
           { fieldId: "message", label: "Message", type: "long_text", required: true }
         ]
       },
@@ -137,9 +137,9 @@ const seedKingsData = async () => {
         fields: [
           { fieldId: "attendee_name", label: "Attendee Name", type: "short_text", required: true },
           { fieldId: "work_email", label: "Work Email", type: "email", required: true },
-          { fieldId: "company_name", label: "Company / Organization", type: "short_text", required: false },
+          { fieldId: "company_name", label: "Company / Organization", type: "short_text", required: true },
           { fieldId: "ticket_type", label: "Ticket Pass Type", type: "multiple_choice", required: true, options: ["General Admission (Free)", "VIP Pass ($199)", "Workshop Pass ($299)"] },
-          { fieldId: "dietary_req", label: "Dietary Restrictions", type: "checkbox", required: false, options: ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "None"] }
+          { fieldId: "dietary_req", label: "Dietary Restrictions", type: "checkbox", required: true, options: ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "None"] }
         ]
       }
     ];
@@ -188,7 +188,7 @@ const seedKingsData = async () => {
     }
 
     // 5. Seed responses across a 30-day timeline (July 12, 2026 to August 11, 2026)
-    console.log("\n🌱 Seeding timeline responses across past 30 days...");
+    console.log("\n🌱 Seeding FULLY COMPLETED timeline responses across past 30 days...");
 
     const now = Date.now();
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
@@ -201,7 +201,7 @@ const seedKingsData = async () => {
 
     let totalCreatedResponses = 0;
 
-    // Define response count target per form (20 to 35 responses per form)
+    // Define response count target per form (25 to 35 responses per form)
     const formResponseTargets = [
       { title: "Job Application", count: 28 },
       { title: "Product Order Form", count: 32 },
@@ -214,17 +214,15 @@ const seedKingsData = async () => {
       const form = formsMap[target.title];
       if (!form) continue;
 
-      console.log(`⏳ Seeding ${target.count} responses for '${form.title}'...`);
+      console.log(`⏳ Seeding ${target.count} 100% completed responses for '${form.title}'...`);
 
       // Generate dates distributed non-uniformly across the 30 days to simulate real user traffic trends
       const dates: Date[] = [];
       for (let i = 0; i < target.count; i++) {
-        // Random offset within 30 days, slightly weighted towards recent days
         const randomFraction = Math.pow(Math.random(), 0.85); // slight bias to recent
         const timestamp = startDate + Math.floor(randomFraction * thirtyDaysMs);
         dates.push(new Date(timestamp));
       }
-      // Sort dates ascending
       dates.sort((a, b) => a.getTime() - b.getTime());
 
       for (let i = 0; i < target.count; i++) {
@@ -233,75 +231,77 @@ const seedKingsData = async () => {
         const applicantEmail = applicantEmails[i % applicantEmails.length];
         const city = cities[i % cities.length];
 
-        // Determine response status: 75% completed, 15% in_progress, 10% new
-        let status: "completed" | "in_progress" | "new" = "completed";
-        const randStatus = Math.random();
-        if (randStatus > 0.88) {
-          status = "new";
-        } else if (randStatus > 0.75) {
-          status = "in_progress";
-        }
+        // Status is 100% COMPLETED for all test submissions
+        const status: "completed" = "completed";
 
-        // Build answers based on form fields
+        // Build answers based on form fields — keying under BOTH label and fieldId to guarantee zero empty fields
         const answers: Record<string, any> = {};
 
         for (const field of form.fields) {
-          if (status === "in_progress" && Math.random() > 0.5) {
-            // Partial answer for in_progress
-            continue;
-          }
+          let value: any = "";
 
           if (field.fieldId === "full_name" || field.fieldId === "customer_name" || field.fieldId === "respondent_name" || field.fieldId === "contact_name" || field.fieldId === "attendee_name") {
-            answers[field.fieldId] = applicantName;
+            value = applicantName;
           } else if (field.fieldId === "email" || field.fieldId === "contact_email" || field.fieldId === "work_email") {
-            answers[field.fieldId] = applicantEmail;
+            value = applicantEmail;
           } else if (field.fieldId === "phone") {
-            answers[field.fieldId] = `+1 (${555}) ${100 + (i % 899)}-${1000 + ((i * 37) % 8999)}`;
+            value = `+1 (555) ${100 + (i % 899)}-${1000 + ((i * 37) % 8999)}`;
           } else if (field.fieldId === "position") {
-            answers[field.fieldId] = jobTitles[i % jobTitles.length];
+            value = jobTitles[i % jobTitles.length];
           } else if (field.fieldId === "experience") {
-            answers[field.fieldId] = (i % 10) + 1;
+            value = (i % 10) + 1;
           } else if (field.fieldId === "bio") {
-            answers[field.fieldId] = `Experienced professional based in ${city} with expertise in modern workflows and enterprise software delivery.`;
+            value = `Experienced professional based in ${city} with 5+ years expertise in modern software workflows and enterprise delivery.`;
           } else if (field.fieldId === "product_selected") {
-            answers[field.fieldId] = products[i % products.length];
+            value = products[i % products.length];
           } else if (field.fieldId === "quantity") {
-            answers[field.fieldId] = (i % 5) + 1;
+            value = (i % 5) + 1;
           } else if (field.fieldId === "payment_method") {
-            answers[field.fieldId] = paymentMethods[i % paymentMethods.length];
+            value = paymentMethods[i % paymentMethods.length];
           } else if (field.fieldId === "special_instructions") {
-            answers[field.fieldId] = `Please deliver to office location in ${city}. Urgent fulfillment requested.`;
+            value = `Please deliver to main office location in ${city}. Standard business hours delivery requested.`;
           } else if (field.fieldId === "overall_rating") {
-            answers[field.fieldId] = ratingValues[i % ratingValues.length];
+            value = ratingValues[i % ratingValues.length];
           } else if (field.fieldId === "features_liked") {
-            answers[field.fieldId] = ["Form Builder", "Analytics Dashboard", "Speed & Performance"].slice(0, (i % 3) + 1);
+            value = ["Form Builder", "Analytics Dashboard", "Speed & Performance"].slice(0, (i % 3) + 1);
           } else if (field.fieldId === "recommend") {
-            answers[field.fieldId] = i % 4 === 0 ? "Probably Yes" : "Definitely Yes";
+            value = i % 4 === 0 ? "Probably Yes" : "Definitely Yes";
           } else if (field.fieldId === "feedback_text") {
-            answers[field.fieldId] = `Overall great experience using Beginso. The drag-and-drop builder and real-time response table saved our team days of manual setup.`;
+            value = `Overall exceptional experience using Beginso. The intuitive form builder and real-time response tables streamlined our entire workflow.`;
           } else if (field.fieldId === "subject") {
-            answers[field.fieldId] = `Inquiry regarding enterprise pricing and features - ${applicantName}`;
+            value = `Inquiry regarding enterprise features and licensing - ${applicantName}`;
           } else if (field.fieldId === "preferred_contact_time") {
-            answers[field.fieldId] = ["Morning (9 AM - 12 PM)", "Afternoon (12 PM - 5 PM)"][i % 2];
+            value = ["Morning (9 AM - 12 PM)", "Afternoon (12 PM - 5 PM)", "Evening (5 PM - 8 PM)"][i % 3];
           } else if (field.fieldId === "message") {
-            answers[field.fieldId] = `Hello team, we are evaluating Beginso for our organization of 50+ members. Please contact me at ${applicantEmail}.`;
+            value = `Hello team, we are currently evaluating Beginso for our organization of 50+ members. Please reach out to me at ${applicantEmail}.`;
           } else if (field.fieldId === "company_name") {
-            answers[field.fieldId] = `${applicantName.split(" ")[1]} Technologies Inc.`;
+            value = `${applicantName.split(" ")[1]} Global Solutions Inc.`;
           } else if (field.fieldId === "ticket_type") {
-            answers[field.fieldId] = ["General Admission (Free)", "VIP Pass ($199)", "Workshop Pass ($299)"][i % 3];
+            value = ["General Admission (Free)", "VIP Pass ($199)", "Workshop Pass ($299)"][i % 3];
           } else if (field.fieldId === "dietary_req") {
-            answers[field.fieldId] = ["Vegetarian", "Vegan", "None"][i % 3];
+            value = ["Vegetarian", "Vegan", "Gluten-Free", "None"][i % 4];
           } else if (field.type === "short_text") {
-            answers[field.fieldId] = `Sample response entry ${i + 1}`;
+            value = `Sample entry ${i + 1}`;
           } else if (field.type === "email") {
-            answers[field.fieldId] = applicantEmail;
+            value = applicantEmail;
           } else if (field.type === "dropdown" && field.options && field.options.length > 0) {
-            answers[field.fieldId] = field.options[i % field.options.length].value;
+            value = typeof field.options[i % field.options.length] === "string" 
+              ? field.options[i % field.options.length] 
+              : field.options[i % field.options.length].value || field.options[i % field.options.length].label;
           } else if (field.type === "multiple_choice" && field.options && field.options.length > 0) {
-            answers[field.fieldId] = field.options[i % field.options.length].value;
+            value = typeof field.options[i % field.options.length] === "string" 
+              ? field.options[i % field.options.length] 
+              : field.options[i % field.options.length].value || field.options[i % field.options.length].label;
           } else if (field.type === "checkbox" && field.options && field.options.length > 0) {
-            answers[field.fieldId] = [field.options[0].value];
+            const firstOpt = field.options[0];
+            value = [typeof firstOpt === "string" ? firstOpt : firstOpt.value || firstOpt.label];
+          } else {
+            value = `Completed value ${i + 1}`;
           }
+
+          // Populate answers under BOTH field.label AND field.fieldId to ensure 100% field coverage under any lookup
+          if (field.label) answers[field.label] = value;
+          if (field.fieldId) answers[field.fieldId] = value;
         }
 
         await ResponseModel.create({
@@ -315,16 +315,17 @@ const seedKingsData = async () => {
 
         totalCreatedResponses++;
       }
-      console.log(`✅ Seeded ${target.count} responses for '${form.title}'`);
+      console.log(`✅ Seeded ${target.count} fully completed responses for '${form.title}'`);
     }
 
     console.log(`\n🎉 SEEDING COMPLETED SUCCESSFULLY!`);
-    console.log(`📊 Summary of generated test dataset:`);
+    console.log(`📊 Summary of 100% Filled-Out Dataset:`);
     console.log(`   - User: ${user.fullName} (${user.email})`);
     console.log(`   - Workspace: ${workspace.name}`);
     console.log(`   - Total Forms: ${Object.keys(formsMap).length}`);
-    console.log(`   - Total Timeline Responses Generated: ${totalCreatedResponses}`);
-    console.log(`   - Date Span: July 12, 2026 ➔ August 11, 2026 (30 Days)\n`);
+    console.log(`   - Total Completed Responses: ${totalCreatedResponses}`);
+    console.log(`   - Date Span: July 12, 2026 ➔ August 11, 2026 (30 Days)`);
+    console.log(`   - Empty Fields: 0 (Every single field is 100% populated!)\n`);
 
     await mongoose.disconnect();
     process.exit(0);

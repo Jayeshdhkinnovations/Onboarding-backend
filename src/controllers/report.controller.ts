@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { z } from "zod";
 import ReportModel from "../models/Report";
+import Form from "../models/Form";
 import Workspace from "../models/Workspace";
 import { generateReportAsync } from "../services/report.service";
 
@@ -75,6 +76,13 @@ export const createReport = async (req: Request, res: Response, next: NextFuncti
       expiresAt,
     });
 
+    // Resolve formTitle if formId provided
+    let formTitle: string | null = "All Workspace Forms";
+    if (formId && mongoose.Types.ObjectId.isValid(formId)) {
+      const formDoc = await Form.findById(formId).select("title");
+      if (formDoc) formTitle = formDoc.title;
+    }
+
     // Kick off asynchronous background report generation
     setImmediate(() => {
       generateReportAsync(report._id.toString()).catch((err) =>
@@ -82,18 +90,26 @@ export const createReport = async (req: Request, res: Response, next: NextFuncti
       );
     });
 
+    const reportObj = {
+      _id: report._id.toString(),
+      id: report._id.toString(),
+      workspaceId: report.workspaceId.toString(),
+      format: report.format,
+      status: report.status,
+      formId: formId || null,
+      formTitle: formTitle,
+      filters: report.filters,
+      errorMessage: null,
+      fileSize: null,
+      expiresAt: report.expiresAt,
+      createdAt: report.createdAt,
+      updatedAt: report.updatedAt,
+    };
+
     res.status(202).json({
       success: true,
       message: "Report job queued successfully",
-      report: {
-        id: report._id.toString(),
-        workspaceId: report.workspaceId.toString(),
-        format: report.format,
-        filters: report.filters,
-        status: report.status,
-        expiresAt: report.expiresAt,
-        createdAt: report.createdAt,
-      },
+      report: reportObj,
     });
   } catch (error) {
     next(error);
@@ -122,18 +138,29 @@ export const getReports = async (req: Request, res: Response, next: NextFunction
     const total = await ReportModel.countDocuments(query);
     const reports = await ReportModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
+    // Map workspace forms for formTitle resolution
+    const forms = await Form.find({ workspaceId: new mongoose.Types.ObjectId(userWorkspaceId) }).select("_id title");
+    const formTitleMap = new Map(forms.map((f) => [f._id.toString(), f.title]));
+
     const now = new Date();
     const formattedReports = reports.map((r) => {
       let currentStatus = r.status;
       if (r.expiresAt && r.expiresAt < now && currentStatus === "completed") {
         currentStatus = "expired";
       }
+
+      const formId = r.filters?.formId || null;
+      const formTitle = formId ? formTitleMap.get(formId) || null : "All Workspace Forms";
+
       return {
+        _id: r._id.toString(),
         id: r._id.toString(),
         workspaceId: r.workspaceId.toString(),
         format: r.format,
-        filters: r.filters,
         status: currentStatus,
+        formId,
+        formTitle,
+        filters: r.filters,
         errorMessage: r.errorMessage || null,
         fileSize: r.fileSize || null,
         expiresAt: r.expiresAt,
@@ -190,14 +217,24 @@ export const getReportById = async (req: Request, res: Response, next: NextFunct
       currentStatus = "expired";
     }
 
+    const formId = report.filters?.formId || null;
+    let formTitle: string | null = "All Workspace Forms";
+    if (formId && mongoose.Types.ObjectId.isValid(formId)) {
+      const formDoc = await Form.findById(formId).select("title");
+      if (formDoc) formTitle = formDoc.title;
+    }
+
     res.status(200).json({
       success: true,
       report: {
+        _id: report._id.toString(),
         id: report._id.toString(),
         workspaceId: report.workspaceId.toString(),
         format: report.format,
-        filters: report.filters,
         status: currentStatus,
+        formId,
+        formTitle,
+        filters: report.filters,
         errorMessage: report.errorMessage || null,
         fileSize: report.fileSize || null,
         expiresAt: report.expiresAt,
