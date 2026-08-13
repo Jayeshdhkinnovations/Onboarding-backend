@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import mongoose from "mongoose";
+import PDFDocument from "pdfkit";
 import ReportModel, { IReport } from "../models/Report";
 import Form from "../models/Form";
 import ResponseModel from "../models/Response";
@@ -111,76 +112,50 @@ export const generateReportAsync = async (reportId: string): Promise<void> => {
         writeStream.on("error", (err) => reject(err));
       });
     } else if (report.format === "pdf") {
-      // PDF generation
+      // PDF generation using pure JS pdfkit engine (no external binary or Puppeteer dependency required)
       const responses = await ResponseModel.find(query).sort({ submittedAt: -1 }).limit(500);
       const totalCount = responses.length;
       const completedCount = responses.filter((r) => r.status === "completed").length;
 
-      let html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Beginso Analytics Report</title>
-  <style>
-    body { font-family: Helvetica, Arial, sans-serif; padding: 30px; color: #111827; }
-    h1 { color: #1E40AF; }
-    .summary { margin-bottom: 20px; padding: 15px; background: #F3F4F6; border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #E5E7EB; padding: 8px 12px; text-align: left; font-size: 12px; }
-    th { background: #1E40AF; color: #fff; }
-  </style>
-</head>
-<body>
-  <h1>Beginso Workspace Summary Report</h1>
-  <div class="summary">
-    <p><strong>Generated At:</strong> ${new Date().toUTCString()}</p>
-    <p><strong>Total Responses in Range:</strong> ${totalCount}</p>
-    <p><strong>Completed Responses:</strong> ${completedCount}</p>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Response ID</th>
-        <th>Form Title</th>
-        <th>Status</th>
-        <th>Submitted At</th>
-      </tr>
-    </thead>
-    <tbody>`;
+      await new Promise<void>((resolve, reject) => {
+        const doc = new PDFDocument({ margin: 40, size: "A4" });
+        const writeStream = fs.createWriteStream(targetFilePath);
 
-      for (const r of responses) {
-        const title = formMap.get(r.formId.toString())?.title || "Form Response";
-        html += `<tr>
-          <td>${r._id.toString()}</td>
-          <td>${title}</td>
-          <td>${r.status || "new"}</td>
-          <td>${r.submittedAt ? r.submittedAt.toISOString() : r.createdAt.toISOString()}</td>
-        </tr>`;
-      }
+        writeStream.on("finish", () => resolve());
+        writeStream.on("error", (err) => reject(err));
+        doc.on("error", (err) => reject(err));
 
-      html += `</tbody></table></body></html>`;
+        doc.pipe(writeStream);
 
-      let puppeteerSuccess = false;
-      try {
-        const puppeteer = require("puppeteer");
-        const browser = await puppeteer.launch({ args: ["--no-sandbox", "--disable-setuid-sandbox"] });
-        const page = await browser.newPage();
-        await page.setContent(html);
-        await page.pdf({ path: targetFilePath, format: "A4" });
-        await browser.close();
-        puppeteerSuccess = true;
-      } catch (pErr) {
-        // Fallback PDF writer if Puppeteer binary is absent
-        await new Promise<void>((resolve, reject) => {
-          const writeStream = fs.createWriteStream(targetFilePath);
-          writeStream.on("finish", () => resolve());
-          writeStream.on("error", (err) => reject(err));
-          writeStream.write(`%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n`);
-          writeStream.write(`2 0 obj << /Type /Pages /Kinds [] /Count 0 >> endobj\n`);
-          writeStream.write(`%%EOF\n`);
-          writeStream.end();
-        });
-      }
+        // Header Title
+        doc.fillColor("#1E40AF").fontSize(20).text("Beginso Workspace Analytics Report", { align: "left" });
+        doc.moveDown(0.5);
+        doc.fillColor("#4B5563").fontSize(10).text(`Generated At: ${new Date().toUTCString()}`);
+        doc.text(`Total Responses in Range: ${totalCount}`);
+        doc.text(`Completed Responses: ${completedCount}`);
+        doc.moveDown(1);
+
+        // Horizontal Line
+        doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#E5E7EB").stroke();
+        doc.moveDown(1);
+
+        // Table Header
+        doc.fillColor("#1E40AF").fontSize(11).text("Response Records Summary:", { underline: true });
+        doc.moveDown(0.5);
+
+        if (responses.length === 0) {
+          doc.fillColor("#6B7280").fontSize(10).text("No responses found for the selected filter range.");
+        } else {
+          for (const r of responses) {
+            const title = formMap.get(r.formId.toString())?.title || "Form Response";
+            const dateStr = r.submittedAt ? r.submittedAt.toISOString().slice(0, 10) : r.createdAt.toISOString().slice(0, 10);
+            doc.fillColor("#111827").fontSize(9).text(`• ID: ${r._id.toString()}  |  Form: ${title}  |  Status: ${r.status || "new"}  |  Date: ${dateStr}`);
+            doc.moveDown(0.3);
+          }
+        }
+
+        doc.end();
+      });
     }
 
     if (!fs.existsSync(targetFilePath)) {
