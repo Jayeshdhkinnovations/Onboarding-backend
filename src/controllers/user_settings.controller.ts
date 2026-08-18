@@ -129,20 +129,22 @@ export const completeOnboarding = async (req: Request, res: Response, next: Next
       return;
     }
 
-    const wasAlreadyCompleted = user.onboardingCompleted;
     user.onboardingCompleted = true;
     await user.save();
 
-    // Create welcome notification if first time completing onboarding
-    if (!wasAlreadyCompleted && user.workspaceId) {
+    // Create welcome notification if not already existing
+    if (user.workspaceId) {
       try {
-        await Notification.create({
-          userId: user._id,
-          workspaceId: user.workspaceId,
-          type: "welcome",
-          title: "Welcome to Beginso!",
-          message: "You're all set — start by creating your first form.",
-        });
+        const existingWelcome = await Notification.findOne({ userId: user._id, type: "welcome" });
+        if (!existingWelcome) {
+          await Notification.create({
+            userId: user._id,
+            workspaceId: user.workspaceId,
+            type: "welcome",
+            title: "Welcome to Beginso!",
+            message: "You're all set — start by creating your first form.",
+          });
+        }
       } catch (notifErr) {
         console.warn("Failed to create welcome notification:", notifErr);
       }

@@ -123,6 +123,22 @@ export const patchCurrentWorkspace = async (req: Request, res: Response, next: N
       // Mark onboarding as completed on user model when workspace is named
       if (authReq.user) {
         await User.findByIdAndUpdate(authReq.user._id, { onboardingCompleted: true });
+
+        // Ensure welcome notification is created
+        try {
+          const existingNotif = await Notification.findOne({ userId: authReq.user._id, type: "welcome" });
+          if (!existingNotif) {
+            await Notification.create({
+              userId: authReq.user._id,
+              workspaceId: workspace._id,
+              type: "welcome",
+              title: "Welcome to Beginso!",
+              message: "You're all set — start by creating your first form.",
+            });
+          }
+        } catch (notifErr) {
+          console.warn("Failed to create welcome notification in patchWorkspace:", notifErr);
+        }
       }
     }
 
