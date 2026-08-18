@@ -128,14 +128,18 @@ export const getMe = async (
       success: true,
       user: {
         id: u._id.toString(),
-        name: u.fullName,
-        email: u.email,
-        workspaceId: u.workspaceId?._id ? u.workspaceId._id.toString() : u.workspaceId?.toString() || "",
-        // Keep MongoDB properties for backwards compatibility
         _id: u._id.toString(),
+        name: u.fullName,
         fullName: u.fullName,
+        email: u.email,
+        avatarUrl: u.avatarUrl || null,
+        emailVerified: true,
         role: u.role,
         status: u.status || "active",
+        onboardingCompleted: u.onboardingCompleted ?? false,
+        workspaceId: u.workspaceId?._id ? u.workspaceId._id.toString() : u.workspaceId?.toString() || "",
+        createdAt: u.createdAt,
+        lastLoginAt: u.lastLogin || null,
       },
     });
   } catch (error: any) {
@@ -313,7 +317,21 @@ export const session = async (
     res.status(200).json({
       success: true,
       token: jwtToken,
-      user,
+      user: {
+        id: user!._id.toString(),
+        _id: user!._id.toString(),
+        name: user!.fullName,
+        fullName: user!.fullName,
+        email: user!.email,
+        avatarUrl: user!.avatarUrl || null,
+        emailVerified: true,
+        role: user!.role,
+        status: user!.status || "active",
+        onboardingCompleted: user!.onboardingCompleted ?? false,
+        workspaceId: user!.workspaceId?._id ? user!.workspaceId._id.toString() : user!.workspaceId?.toString() || "",
+        createdAt: user!.createdAt,
+        lastLoginAt: user!.lastLogin || null,
+      },
       isNewUser,
     });
   } catch (error: any) {

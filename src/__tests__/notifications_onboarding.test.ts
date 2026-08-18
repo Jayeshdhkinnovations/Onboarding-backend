@@ -82,6 +82,19 @@ describe("Notifications & Onboarding API (/api/notifications, /api/users/me/onbo
     expect(res.body.user.role).toBe("admin");
   });
 
+  it("GET /api/auth/me - should synchronously return onboardingCompleted, emailVerified, role, status, createdAt, lastLoginAt", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.user.onboardingCompleted).toBe(true);
+    expect(res.body.user.emailVerified).toBe(true);
+    expect(res.body.user.role).toBe("admin");
+    expect(res.body.user.status).toBe("active");
+  });
+
   it("GET /api/notifications - should return array of notifications", async () => {
     const res = await request(app)
       .get("/api/notifications")
