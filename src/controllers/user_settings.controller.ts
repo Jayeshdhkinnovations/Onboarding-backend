@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import User from "../models/User";
+import Notification from "../models/Notification";
 
 const profilePatchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -11,7 +12,7 @@ const profilePatchSchema = z.object({
 
 /**
  * GET /api/users/me
- * Returns profile fields including avatarUrl, verification state, created/last-login dates.
+ * Returns profile fields including avatarUrl, verification state, created/last-login dates, and onboardingCompleted.
  */
 export const getProfileMe = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -33,6 +34,7 @@ export const getProfileMe = async (req: Request, res: Response, next: NextFuncti
         emailVerified: true,
         role: u.role,
         status: u.status || "active",
+        onboardingCompleted: u.onboardingCompleted ?? false,
         createdAt: u.createdAt,
         lastLoginAt: u.lastLogin || null,
       },
@@ -99,8 +101,61 @@ export const patchProfileMe = async (req: Request, res: Response, next: NextFunc
         emailVerified: true,
         role: updatedUser!.role,
         status: updatedUser!.status || "active",
+        onboardingCompleted: updatedUser!.onboardingCompleted ?? false,
         createdAt: updatedUser!.createdAt,
         lastLoginAt: updatedUser!.lastLogin || null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/users/me/onboarding-complete
+ * Marks user onboarding as complete and creates a welcome notification.
+ */
+export const completeOnboarding = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authReq = req as any;
+    if (!authReq.user) {
+      res.status(401).json({ success: false, message: "Not authorized" });
+      return;
+    }
+
+    const user = await User.findById(authReq.user._id);
+    if (!user) {
+      res.status(404).json({ success: false, message: "User not found" });
+      return;
+    }
+
+    const wasAlreadyCompleted = user.onboardingCompleted;
+    user.onboardingCompleted = true;
+    await user.save();
+
+    // Create welcome notification if first time completing onboarding
+    if (!wasAlreadyCompleted && user.workspaceId) {
+      try {
+        await Notification.create({
+          userId: user._id,
+          workspaceId: user.workspaceId,
+          type: "welcome",
+          title: "Welcome to Beginso!",
+          message: "You're all set — start by creating your first form.",
+        });
+      } catch (notifErr) {
+        console.warn("Failed to create welcome notification:", notifErr);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Onboarding marked as complete",
+      user: {
+        id: user._id.toString(),
+        name: user.fullName,
+        email: user.email,
+        onboardingCompleted: true,
       },
     });
   } catch (error) {

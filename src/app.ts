@@ -16,6 +16,7 @@ import responseRoutes from "./routes/response.routes";
 import superadminRoutes from "./routes/superadmin.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import reportRoutes from "./routes/report.routes";
+import notificationRoutes from "./routes/notification.routes";
 import { errorHandler } from "./middleware/error.middleware";
 
 // Continuous Deployment Test Comment
@@ -88,6 +89,7 @@ app.use("/api/public", publicRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/templates", templateRoutes);
 app.use("/api/superadmin", superadminRoutes);

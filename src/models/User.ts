@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+
 export interface ILoginLocation {
   city: string | null;
   region: string | null;
@@ -23,11 +24,13 @@ export interface IUser extends Document {
   workspaceId: mongoose.Types.ObjectId;
   isActive: boolean;
   status: "active" | "suspended";
+  onboardingCompleted: boolean;
   lastLogin: Date;
   loginHistory: ILoginEntry[];
   createdAt?: Date;
   updatedAt?: Date;
 }
+
 const UserSchema = new Schema<IUser>(
   {
     firebaseUid: {
@@ -78,6 +81,11 @@ const UserSchema = new Schema<IUser>(
       type: String,
       enum: ["active", "suspended"],
       default: "active",
+    },
+
+    onboardingCompleted: {
+      type: Boolean,
+      default: false,
     },
 
     lastLogin: {

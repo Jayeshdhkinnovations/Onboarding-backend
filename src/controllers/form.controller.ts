@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { SystemLog } from "../models/SystemLog";
 import Workspace from "../models/Workspace";
 import Upload from "../models/Upload";
+import Notification from "../models/Notification";
 import path from "path";
 import fs from "fs";
 import { getUploadDir } from "./upload.controller";
@@ -951,6 +952,22 @@ export const submitPublicForm = async (
     const ctx = (req as any).uploadContext;
     const submission = await formService.submitForm(form._id.toString(), answers, hashedIp, ctx?.responseId);
     submissionSuccess = true;
+
+    // Create form_activity notification for workspace owner
+    try {
+      const ws = await Workspace.findById(form.workspaceId);
+      if (ws && ws.owner) {
+        await Notification.create({
+          userId: ws.owner,
+          workspaceId: form.workspaceId,
+          type: "form_activity",
+          title: "New Response Received",
+          message: `New response submitted for form "${form.title}"`,
+        });
+      }
+    } catch (nErr) {
+      console.warn("Failed to create form_activity notification:", nErr);
+    }
 
     // Write response.json to disk inside responses/<responseId>/
     if (ctx) {

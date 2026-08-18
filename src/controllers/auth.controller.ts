@@ -8,6 +8,7 @@ import User from "../models/User";
 import Workspace from "../models/Workspace";
 import AuthOtp from "../models/AuthOtp";
 import AuthTicket from "../models/AuthTicket";
+import Notification from "../models/Notification";
 
 import { signupSchema } from "../validations/auth.validator";
 import { generateToken } from "../utils/generateToken";
@@ -722,6 +723,21 @@ export const confirmPasswordReset = async (
           actionUrl: `${appUrl}/login`,
         })
         .catch((e) => console.error("Failed to send password changed success email:", e));
+
+      try {
+        const u = await User.findOne({ email: targetEmail });
+        if (u && u.workspaceId) {
+          await Notification.create({
+            userId: u._id,
+            workspaceId: u.workspaceId,
+            type: "password_reset",
+            title: "Password Changed",
+            message: "Your account password was successfully updated.",
+          });
+        }
+      } catch (nErr) {
+        console.warn("Failed to create password_reset notification:", nErr);
+      }
     }
 
     res.status(200).json({

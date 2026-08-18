@@ -26,7 +26,7 @@ export const getSessions = async (req: Request, res: Response, next: NextFunctio
       return {
         id: sId,
         deviceLabel: s.deviceLabel,
-        approxLocation: s.approxLocation || null,
+        approxLocation: s.approxLocation && typeof s.approxLocation === "object" && Object.keys(s.approxLocation).length > 0 ? s.approxLocation : {},
         lastActiveAt: s.lastActiveAt,
         createdAt: s.createdAt,
         revokedAt: s.revokedAt || null,

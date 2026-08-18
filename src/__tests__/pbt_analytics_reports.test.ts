@@ -42,6 +42,7 @@ describe("Property-Based Tests (PBT) — Analytics & Reports", () => {
         (responses) => {
           const dayBuckets = new Map<string, number>();
           for (const r of responses) {
+            if (isNaN(r.submittedAt.getTime())) continue;
             const dayKey = r.submittedAt.toISOString().slice(0, 10);
             dayBuckets.set(dayKey, (dayBuckets.get(dayKey) || 0) + 1);
           }
@@ -51,7 +52,8 @@ describe("Property-Based Tests (PBT) — Analytics & Reports", () => {
             sumBuckets += count;
           }
 
-          return sumBuckets === responses.length;
+          const validResponses = responses.filter((r) => !isNaN(r.submittedAt.getTime()));
+          return sumBuckets === validResponses.length;
         }
       ),
       { numRuns: 100 }

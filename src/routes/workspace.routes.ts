@@ -4,6 +4,7 @@ import {
   getCurrentWorkspace,
   patchCurrentWorkspace,
   createWorkspaceExport,
+  getWorkspaceExportStatus,
   downloadWorkspaceExportFile,
   deleteCurrentWorkspace,
 } from "../controllers/workspace_settings.controller";
@@ -14,7 +15,7 @@ const router = Router();
 router.get("/current", protect as any, blockSuspended as any, getCurrentWorkspace);
 router.patch("/current", protect as any, blockSuspended as any, patchCurrentWorkspace);
 router.post("/current/export", protect as any, blockSuspended as any, createWorkspaceExport);
-router.get("/current/export", protect as any, blockSuspended as any, getCurrentWorkspace);
+router.get("/current/export/status", protect as any, blockSuspended as any, getWorkspaceExportStatus);
 router.get("/current/export/file", protect as any, blockSuspended as any, downloadWorkspaceExportFile);
 router.delete("/current", protect as any, blockSuspended as any, deleteCurrentWorkspace);
 

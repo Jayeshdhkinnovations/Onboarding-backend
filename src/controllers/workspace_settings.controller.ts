@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { getAuth } from "firebase-admin/auth";
 import mongoose from "mongoose";
 import path from "path";
 import fs from "fs";
@@ -9,6 +10,7 @@ import ResponseModel from "../models/Response";
 import Upload from "../models/Upload";
 import SessionModel from "../models/Session";
 import User from "../models/User";
+import Notification from "../models/Notification";
 
 const UPLOADS_EXPORTS_DIR = path.join(process.cwd(), "uploads", "exports");
 
@@ -93,9 +95,11 @@ export const getCurrentWorkspace = async (req: Request, res: Response, next: Nex
 /**
  * PATCH /api/workspaces/current
  * Updates workspace name, branding, and/or notificationPreferences.
+ * Flips onboardingCompleted = true on the user when name is set.
  */
 export const patchCurrentWorkspace = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const authReq = req as any;
     const workspace = await getCallerWorkspace(req);
     if (!workspace) {
       res.status(404).json({ success: false, message: "Workspace not found" });
@@ -114,7 +118,14 @@ export const patchCurrentWorkspace = async (req: Request, res: Response, next: N
 
     const { name, logoUrl, branding, notificationPreferences } = parseResult.data;
 
-    if (name) workspace.name = name;
+    if (name) {
+      workspace.name = name;
+      // Mark onboarding as completed on user model when workspace is named
+      if (authReq.user) {
+        await User.findByIdAndUpdate(authReq.user._id, { onboardingCompleted: true });
+      }
+    }
+
     if (logoUrl !== undefined) {
       workspace.logoUrl = logoUrl;
       workspace.logo = logoUrl || "";
@@ -197,11 +208,48 @@ export const createWorkspaceExport = async (req: Request, res: Response, next: N
     res.status(202).json({
       success: true,
       message: "Workspace export job created successfully",
-      export: {
+      exportJob: {
         id: exportId,
         workspaceId: workspace._id.toString(),
-        status: "completed",
+        status: "queued",
         fileName: exportFileName,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/workspaces/current/export/status
+ * Explicit status checker for workspace export job.
+ */
+export const getWorkspaceExportStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const workspace = await getCallerWorkspace(req);
+    if (!workspace) {
+      res.status(404).json({ success: false, message: "Workspace not found" });
+      return;
+    }
+
+    ensureExportsDir();
+    const jobId = (req.query.jobId as string) || "";
+    const files = fs.readdirSync(UPLOADS_EXPORTS_DIR);
+    
+    let matchingFile = false;
+    if (jobId) {
+      matchingFile = files.some((f) => f.includes(jobId));
+    } else {
+      const prefix = `workspace_export_${workspace._id.toString()}_`;
+      matchingFile = files.some((f) => f.startsWith(prefix));
+    }
+
+    res.status(200).json({
+      success: true,
+      exportJob: {
+        id: jobId || "latest",
+        status: matchingFile ? "completed" : "processing",
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     });
@@ -213,6 +261,7 @@ export const createWorkspaceExport = async (req: Request, res: Response, next: N
 /**
  * GET /api/workspaces/current/export/file
  * Authenticated download stream for workspace export file.
+ * Returns 202 with exportJob status if export file is still generating.
  */
 export const downloadWorkspaceExportFile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -223,12 +272,27 @@ export const downloadWorkspaceExportFile = async (req: Request, res: Response, n
     }
 
     ensureExportsDir();
+    const jobId = (req.query.jobId as string) || "";
     const files = fs.readdirSync(UPLOADS_EXPORTS_DIR);
-    const prefix = `workspace_export_${workspace._id.toString()}_`;
-    const matchingFile = files.find((f) => f.startsWith(prefix));
+    
+    let matchingFile: string | undefined;
+    if (jobId) {
+      matchingFile = files.find((f) => f.includes(jobId));
+    } else {
+      const prefix = `workspace_export_${workspace._id.toString()}_`;
+      matchingFile = files.find((f) => f.startsWith(prefix));
+    }
 
     if (!matchingFile) {
-      res.status(404).json({ success: false, message: "No export file found for workspace" });
+      // Return 202 status envelope instead of breaking crash when retried before file finishes writing
+      res.status(202).json({
+        success: true,
+        message: "Export is currently processing",
+        exportJob: {
+          id: jobId || "latest",
+          status: "processing",
+        },
+      });
       return;
     }
 
@@ -288,18 +352,26 @@ export const deleteCurrentWorkspace = async (req: Request, res: Response, next: 
     // 4. Delete forms
     await Form.deleteMany({ workspaceId: wsId });
 
-    // 5. Revoke / delete user sessions for workspace owner
+    // 5. Revoke / delete user sessions and notifications for workspace owner
     await SessionModel.deleteMany({ userId: ownerId });
+    await Notification.deleteMany({ userId: ownerId });
 
     // 6. Delete workspace document
     await Workspace.findByIdAndDelete(wsId);
 
-    // 7. Clear workspaceId on user document
-    await User.findByIdAndUpdate(ownerId, { workspaceId: null as any });
+    // 7. Delete Firebase Auth user & MongoDB User record (closes account completely)
+    if (authReq.user?.firebaseUid) {
+      try {
+        await getAuth().deleteUser(authReq.user.firebaseUid);
+      } catch (fbErr) {
+        console.warn("Firebase deleteUser skipped or failed during workspace deletion:", fbErr);
+      }
+    }
+    await User.findByIdAndDelete(ownerId);
 
     res.status(200).json({
       success: true,
-      message: "Workspace and all associated forms, responses, uploads, and sessions cascade deleted successfully.",
+      message: "Workspace and associated user account, forms, responses, uploads, and sessions permanently deleted.",
     });
   } catch (error) {
     next(error);
